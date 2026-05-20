@@ -47,7 +47,7 @@ export async function POST() {
   // Collect unique search terms
   const aiTitles: string[] = profile.ai_generated_titles ?? []
   const prefTitles: string[] = prefs?.job_titles ?? []
-  const allTerms = [...new Set([...aiTitles, ...prefTitles])].slice(0, 6)
+  const allTerms = [...new Set([...aiTitles, ...prefTitles])].slice(0, 3)
 
   if (allTerms.length === 0) {
     return NextResponse.json({ matches_found: 0 })
@@ -152,7 +152,7 @@ export async function POST() {
     .eq('batch_date', today)
 
   const alreadyScoredToday = new Set((todaysMatches ?? []).map(m => m.job_id))
-  const jobsForScoring = allJobsPool.filter(j => !alreadyScoredToday.has(j.id)).slice(0, 50)
+  const jobsForScoring = allJobsPool.filter(j => !alreadyScoredToday.has(j.id)).slice(0, 24)
 
   const levelNote = experienceLevel === 'student'
     ? 'The candidate is a student looking for an internship or student job. Score 1–3 for any role requiring 2+ years of experience.'
@@ -172,7 +172,7 @@ export async function POST() {
     const batch = jobsForScoring.slice(i, i + BATCH_SIZE)
 
     const jobList = batch.map((j, idx) =>
-      `Job ${idx + 1} (id: ${j.id}): ${j.title} at ${j.company ?? 'Unknown'}\n${(j.description ?? '').slice(0, 1500)}`
+      `Job ${idx + 1} (id: ${j.id}): ${j.title} at ${j.company ?? 'Unknown'}\n${(j.description ?? '').slice(0, 800)}`
     ).join('\n\n---\n\n')
 
     const scoringPrompt = `You are scoring job vacancies for a candidate based on their resume and stated preferences. Score each job from 1 to 10 for fit.
@@ -219,11 +219,6 @@ Return ONLY a JSON array with this exact structure — no markdown, no explanati
         totalMatches += matchRows.length
       }
 
-      // Generate coach questions for borderline jobs (score 4-8)
-      const borderline = scores.filter(s => s.score >= 4 && s.score <= 8).slice(0, 3)
-      if (borderline.length > 0) {
-        await generateCoachQuestions(user.id, borderline, batch, profile.resume_text)
-      }
     } catch (err) {
       console.error(`Scoring batch ${i} error:`, err)
       await supabaseAdmin.from('pipeline_logs').insert({
