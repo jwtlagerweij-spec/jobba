@@ -37,12 +37,7 @@ function buildSearchTerm(term: string, jobType: string): string {
   return term
 }
 
-export async function fetchAdzunaJobs(searchTerm: string, location?: string, jobType = 'job'): Promise<FetchedJob[]> {
-  if (!APP_ID || !APP_KEY) {
-    console.warn('Adzuna API credentials not configured')
-    return []
-  }
-
+async function fetchAdzunaPage(searchTerm: string, location: string | undefined, jobType: string, page: number): Promise<FetchedJob[]> {
   const params: Record<string, string> = {
     app_id: APP_ID,
     app_key: APP_KEY,
@@ -50,16 +45,15 @@ export async function fetchAdzunaJobs(searchTerm: string, location?: string, job
     what: buildSearchTerm(searchTerm, jobType),
   }
 
-  // Only pass location if it's a specific city, not a country-level default
   if (location && location.toLowerCase() !== 'netherlands' && location.toLowerCase() !== 'nederland') {
     params.where = location
   }
 
-  const url = `https://api.adzuna.com/v1/api/jobs/nl/search/1?${new URLSearchParams(params)}`
+  const url = `https://api.adzuna.com/v1/api/jobs/nl/search/${page}?${new URLSearchParams(params)}`
 
   const res = await fetch(url, { next: { revalidate: 0 } })
   if (!res.ok) {
-    console.error(`Adzuna error for "${searchTerm}": ${res.status}`)
+    console.error(`Adzuna error for "${searchTerm}" page ${page}: ${res.status}`)
     return []
   }
 
@@ -80,4 +74,18 @@ export async function fetchAdzunaJobs(searchTerm: string, location?: string, job
     is_remote: detectRemote(job.title, job.description ?? ''),
     language: detectLanguage(job.description ?? ''),
   }))
+}
+
+export async function fetchAdzunaJobs(searchTerm: string, location?: string, jobType = 'job'): Promise<FetchedJob[]> {
+  if (!APP_ID || !APP_KEY) {
+    console.warn('Adzuna API credentials not configured')
+    return []
+  }
+
+  const [page1, page2] = await Promise.all([
+    fetchAdzunaPage(searchTerm, location, jobType, 1),
+    fetchAdzunaPage(searchTerm, location, jobType, 2).catch(() => [] as FetchedJob[]),
+  ])
+
+  return [...page1, ...page2]
 }

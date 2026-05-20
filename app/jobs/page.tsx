@@ -31,7 +31,7 @@ const SECTORS = [
 ]
 
 const SOURCE_LABELS: Record<string, string> = {
-  adzuna: 'Adzuna', nvb: 'NVB', intermediair: 'Intermediair', jobbird: 'Jobbird', manual: 'Added by you',
+  adzuna: 'Adzuna', nvb: 'NVB', intermediair: 'Intermediair', jobbird: 'Jobbird', manual: 'Manually added',
 }
 
 function ScorePill({ score }: { score: number }) {

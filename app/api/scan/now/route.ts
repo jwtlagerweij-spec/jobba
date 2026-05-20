@@ -4,9 +4,6 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { generateText } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
 import { fetchAdzunaJobs, type FetchedJob } from '@/lib/fetchers/adzuna'
-import { fetchNVBJobs } from '@/lib/fetchers/nvb'
-import { fetchIntermediairJobs } from '@/lib/fetchers/intermediair'
-import { fetchJobbirdJobs } from '@/lib/fetchers/jobbird'
 import { buildPrefsContext, type ScoringPrefs } from '@/lib/pipeline'
 
 export const maxDuration = 60
@@ -77,14 +74,8 @@ export async function POST() {
 
   const allJobs: FetchedJob[] = []
   for (const term of allTerms) {
-    const [adzuna, nvb, intermediair, jobbird] = await Promise.all([
-      fetchAdzunaJobs(term, location, jobType).catch(() => [] as FetchedJob[]),
-      fetchNVBJobs(term).catch(() => []),
-      fetchIntermediairJobs(term).catch(() => []),
-      fetchJobbirdJobs(term).catch(() => []),
-    ])
-    allJobs.push(...adzuna, ...nvb, ...intermediair, ...jobbird)
-    await new Promise(r => setTimeout(r, 300))
+    const jobs = await fetchAdzunaJobs(term, location, jobType).catch(() => [] as FetchedJob[])
+    allJobs.push(...jobs)
   }
 
   if (allJobs.length === 0) {

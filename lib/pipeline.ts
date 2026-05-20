@@ -2,9 +2,6 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { generateText } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
 import { fetchAdzunaJobs, type FetchedJob } from '@/lib/fetchers/adzuna'
-import { fetchNVBJobs } from '@/lib/fetchers/nvb'
-import { fetchIntermediairJobs } from '@/lib/fetchers/intermediair'
-import { fetchJobbirdJobs } from '@/lib/fetchers/jobbird'
 
 export interface ScoredMatch {
   job_id: string
@@ -28,14 +25,8 @@ export interface ScoringPrefs {
 export async function fetchAndUpsertJobs(terms: string[], location?: string, jobType = 'job'): Promise<{ id: string; title: string; company: string | null; description: string | null }[]> {
   const allJobs: FetchedJob[] = []
   for (const term of terms) {
-    const [adzunaJobs, nvbJobs, intermediairJobs, jobbirdJobs] = await Promise.all([
-      fetchAdzunaJobs(term, location, jobType).catch(() => [] as FetchedJob[]),
-      fetchNVBJobs(term).catch(() => []),
-      fetchIntermediairJobs(term).catch(() => []),
-      fetchJobbirdJobs(term).catch(() => []),
-    ])
-    allJobs.push(...adzunaJobs, ...nvbJobs, ...intermediairJobs, ...jobbirdJobs)
-    await new Promise(r => setTimeout(r, 300))
+    const jobs = await fetchAdzunaJobs(term, location, jobType).catch(() => [] as FetchedJob[])
+    allJobs.push(...jobs)
   }
 
   if (allJobs.length === 0) return []
