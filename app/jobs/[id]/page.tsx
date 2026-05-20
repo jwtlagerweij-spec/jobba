@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { toast } from 'sonner'
@@ -8,6 +8,7 @@ import { CompanyLogo } from '@/components/ui/company-logo'
 import { Button } from '@/components/ui/button'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { AppNav } from '@/components/ui/app-nav'
 
 interface JobData {
   job: {
@@ -20,6 +21,7 @@ interface JobData {
   cover_letter: { version: number } | null
   tailored_resume: { version: number } | null
   credits: number
+  ai_unlocked: boolean
 }
 
 const STATUS_OPTIONS = ['saved', 'applied', 'interviewing', 'offered', 'rejected']
@@ -30,7 +32,12 @@ export default function JobDetailPage() {
 
   const [data, setData] = useState<JobData | null>(null)
   const [status, setStatus] = useState<string>('')
+  const [notes, setNotes] = useState<string>('')
   const [saving, setSaving] = useState(false)
+  const [notesSaved, setNotesSaved] = useState(false)
+  const [skillsGap, setSkillsGap] = useState<{ matched: string[]; missing: string[] } | null>(null)
+  const [loadingSkills, setLoadingSkills] = useState(false)
+  const notesTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     fetch(`/api/jobs/${jobId}`)
@@ -38,7 +45,14 @@ export default function JobDetailPage() {
       .then(d => {
         setData(d)
         setStatus(d.application?.status ?? '')
+        setNotes(d.application?.notes ?? '')
       })
+
+    setLoadingSkills(true)
+    fetch(`/api/jobs/${jobId}/skills-gap`)
+      .then(r => r.json())
+      .then(d => { if (d.matched || d.missing) setSkillsGap(d) })
+      .finally(() => setLoadingSkills(false))
   }, [jobId])
 
   async function handleStatusChange(newStatus: string) {
@@ -48,13 +62,27 @@ export default function JobDetailPage() {
       await fetch('/api/applications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job_id: jobId, status: newStatus }),
+        body: JSON.stringify({ job_id: jobId, status: newStatus, notes }),
       })
     } catch {
       toast.error('Failed to save status.')
     } finally {
       setSaving(false)
     }
+  }
+
+  function handleNotesChange(val: string) {
+    setNotes(val)
+    setNotesSaved(false)
+    if (notesTimer.current) clearTimeout(notesTimer.current)
+    notesTimer.current = setTimeout(async () => {
+      await fetch('/api/applications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: jobId, status: status || 'saved', notes: val }),
+      })
+      setNotesSaved(true)
+    }, 800)
   }
 
   if (!data) {
@@ -65,16 +93,11 @@ export default function JobDetailPage() {
     )
   }
 
-  const { job, match, cover_letter, tailored_resume, credits } = data
+  const { job, match, cover_letter, tailored_resume, credits, ai_unlocked } = data
 
   return (
     <div className="min-h-screen bg-background">
-      <nav className="border-b px-6 py-4 flex items-center gap-4">
-        <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">
-          ← Dashboard
-        </Link>
-        <span className="font-bold ml-auto">Jobba</span>
-      </nav>
+      <AppNav backHref="/dashboard" backLabel="← Dashboard" />
 
       <main className="max-w-2xl mx-auto px-4 py-10 space-y-8">
 
@@ -112,6 +135,34 @@ export default function JobDetailPage() {
           </div>
         )}
 
+        {/* Skills gap */}
+        {(loadingSkills || skillsGap) && (
+          <div className="rounded-xl border bg-card p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Skills match</p>
+            {loadingSkills && !skillsGap && (
+              <div className="space-y-2">
+                {[1,2,3].map(i => <div key={i} className="h-3 bg-muted rounded animate-pulse w-2/3" />)}
+              </div>
+            )}
+            {skillsGap && (
+              <div className="space-y-2">
+                {skillsGap.matched.map(s => (
+                  <div key={s} className="flex items-center gap-2 text-sm">
+                    <span className="text-green-500 font-bold">✓</span>
+                    <span>{s}</span>
+                  </div>
+                ))}
+                {skillsGap.missing.map(s => (
+                  <div key={s} className="flex items-center gap-2 text-sm">
+                    <span className="text-red-400 font-bold">✗</span>
+                    <span className="text-muted-foreground">{s}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Status tracker */}
         <div>
           <p className="text-sm font-medium mb-2">Application status</p>
@@ -133,6 +184,21 @@ export default function JobDetailPage() {
           </div>
         </div>
 
+        {/* Notes */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-medium">Notes</p>
+            {notesSaved && <span className="text-xs text-green-600">Saved</span>}
+          </div>
+          <textarea
+            value={notes}
+            onChange={e => handleNotesChange(e.target.value)}
+            placeholder="Recruiter name, interview date, things to mention, salary discussed…"
+            rows={3}
+            className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+          />
+        </div>
+
         {/* AI Actions */}
         <div className="rounded-xl border p-5 space-y-3">
           <div className="flex items-center justify-between">
@@ -140,9 +206,17 @@ export default function JobDetailPage() {
             <span className="text-xs text-muted-foreground">{credits} credit{credits !== 1 ? 's' : ''} remaining</span>
           </div>
 
-          {credits === 0 && (
+          {ai_unlocked ? (
+            <p className="text-xs text-green-700 bg-green-50 border border-green-100 rounded-lg p-3">
+              ✓ This job is unlocked — all AI tools are free to use as many times as you want.
+            </p>
+          ) : credits === 0 ? (
             <p className="text-xs text-muted-foreground bg-muted rounded-lg p-3">
-              You&apos;ve used all your welcome credits. More credits coming soon — you&apos;ll be notified when Pro launches.
+              You&apos;ve used all your welcome credits. More credits coming soon.
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground bg-muted rounded-lg p-3">
+              Using any AI tool on this job costs 1 credit. Once unlocked, all tools are free for this job. You have {credits} credit{credits !== 1 ? 's' : ''} remaining.
             </p>
           )}
 
@@ -151,15 +225,21 @@ export default function JobDetailPage() {
               href={`/jobs/${jobId}/cover-letter`}
               className={cn(buttonVariants({ variant: 'default' }), 'flex-1 text-center')}
             >
-              {cover_letter ? `Cover letter (v${cover_letter.version})` : '✦ Generate cover letter'}
+              {cover_letter ? `Cover letter (v${cover_letter.version})` : '✦ Cover letter'}
             </Link>
             <Link
               href={`/jobs/${jobId}/resume`}
               className={cn(buttonVariants({ variant: 'outline' }), 'flex-1 text-center')}
             >
-              {tailored_resume ? `Tailored resume (v${tailored_resume.version})` : 'Tailor my resume'}
+              {tailored_resume ? `Resume (v${tailored_resume.version})` : 'Tailor resume'}
             </Link>
           </div>
+          <Link
+            href={`/jobs/${jobId}/interview`}
+            className={cn(buttonVariants({ variant: 'outline' }), 'w-full text-center')}
+          >
+            🎯 Prepare for interview
+          </Link>
         </div>
 
         {/* Job description */}

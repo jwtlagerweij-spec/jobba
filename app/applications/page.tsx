@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { AppNav } from '@/components/ui/app-nav'
 import {
   DndContext,
   DragEndEvent,
@@ -143,14 +144,7 @@ export default function ApplicationsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <nav className="border-b px-6 py-4 flex items-center justify-between">
-        <span className="font-bold text-lg">Jobba</span>
-        <div className="flex items-center gap-4 text-sm">
-          <Link href="/dashboard" className="text-muted-foreground hover:text-foreground">Dashboard</Link>
-          <Link href="/coach" className="text-muted-foreground hover:text-foreground">Coach</Link>
-          <Link href="/profile" className="text-muted-foreground hover:text-foreground">Profile</Link>
-        </div>
-      </nav>
+      <AppNav />
 
       <main className="px-4 py-8 max-w-7xl mx-auto">
         <h1 className="text-2xl font-bold mb-6">Applications</h1>

@@ -1,0 +1,156 @@
+export type Lang = 'en' | 'nl'
+
+export const t = {
+  // ─── Navigation ───────────────────────────────────────────────────────────
+  nav: {
+    home:         { en: 'Home',          nl: 'Home' },
+    myMatches:    { en: 'My Matches',    nl: 'Mijn Matches' },
+    browseJobs:   { en: 'Browse Jobs',   nl: 'Vacatures' },
+    applications: { en: 'Applications', nl: 'Sollicitaties' },
+    aiCoach:      { en: 'AI Coach',      nl: 'AI Coach' },
+    profile:      { en: 'Profile',       nl: 'Profiel' },
+    resume:       { en: 'Resume',        nl: 'CV' },
+    signOut:      { en: 'Sign out',      nl: 'Uitloggen' },
+    jobSearch:    { en: 'Job search',    nl: 'Vacaturezoeker' },
+    account:      { en: 'Account',       nl: 'Account' },
+  },
+
+  // ─── Dashboard ────────────────────────────────────────────────────────────
+  dashboard: {
+    goodMorning:   { en: 'Good morning', nl: 'Goedemorgen' },
+    goodAfternoon: { en: 'Good afternoon', nl: 'Goedemiddag' },
+    goodEvening:   { en: 'Good evening',   nl: 'Goedenavond' },
+    matches:       { en: 'matches',        nl: 'matches' },
+    new:           { en: 'new',            nl: 'nieuw' },
+    lastScored:    { en: 'last scored',    nl: 'voor het laatst gescoord' },
+    topMatches:    { en: 'Your top matches',  nl: 'Jouw beste matches' },
+    seeAll:        { en: 'See all',           nl: 'Bekijk alle' },
+    noMatchesYet:  { en: 'No matches yet',    nl: 'Nog geen matches' },
+    noMatchesSub:  { en: 'Your first matches appear here after the daily scan.', nl: 'Je eerste matches verschijnen hier na de dagelijkse scan.' },
+    applications:  { en: 'Applications',      nl: 'Sollicitaties' },
+    openTracker:   { en: 'Open tracker →',    nl: 'Tracker openen →' },
+    noAppsYet:     { en: 'No applications tracked yet.\nSave a match to start tracking.', nl: 'Nog geen sollicitaties bijgehouden.\nSla een match op om te beginnen.' },
+    goToMatches:   { en: 'Go to your matches →', nl: 'Naar je matches →' },
+    aiCoach:       { en: 'AI Coach',             nl: 'AI Coach' },
+    goToCoach:     { en: 'Go to coach →',         nl: 'Naar coach →' },
+    allCaughtUp:   { en: 'All caught up',          nl: 'Helemaal bijgewerkt' },
+    coachSub:      { en: 'New questions appear after each scan when the AI spots profile gaps.', nl: 'Nieuwe vragen verschijnen na elke scan wanneer de AI hiaten in je profiel signaleert.' },
+    questionsWaiting: { en: 'questions waiting', nl: 'vragen wachten op je' },
+    questionWaiting:  { en: 'question waiting',  nl: 'vraag wacht op je' },
+    answerImproves:   { en: 'Answering improves your match scores', nl: 'Antwoorden verbetert je matchscores' },
+    answerQuestions:  { en: 'Answer questions →',  nl: 'Vragen beantwoorden →' },
+    browseAll:        { en: 'Browse all jobs',      nl: 'Alle vacatures bekijken' },
+    browseAllSub:     { en: 'Search and filter all Dutch vacancies — sorted by your fit score', nl: 'Doorzoek alle Nederlandse vacatures — gesorteerd op jouw fit-score' },
+  },
+
+  // ─── Matches ──────────────────────────────────────────────────────────────
+  matches: {
+    title:         { en: 'Your matches',   nl: 'Jouw matches' },
+    total:         { en: 'matches total',  nl: 'matches totaal' },
+    scored:        { en: 'Scored:',        nl: 'Gescoord:' },
+    markAllRead:   { en: 'Mark all read',  nl: 'Alles als gelezen markeren' },
+    strongMatch:   { en: 'Strong match',   nl: 'Sterke match' },
+    goodMatch:     { en: 'Good match',     nl: 'Goede match' },
+    possibleMatch: { en: 'Possible match', nl: 'Mogelijke match' },
+    notAMatch:     { en: 'Not a match',    nl: 'Geen match' },
+    notAMatchSub:  { en: 'Showing 1 of {n} low-scoring job{s} — so you can see the scoring is honest.', nl: 'Toont 1 van de {n} laag scorende vacature{s} — zodat je ziet dat de scoring eerlijk is.' },
+    noMatchesYet:  { en: 'No matches yet', nl: 'Nog geen matches' },
+    noMatchesSub:  { en: 'Your first job matches will appear here. The daily scan runs every morning — check back tomorrow.', nl: 'Je eerste matches verschijnen hier. De dagelijkse scan loopt elke ochtend — kom morgen terug.' },
+    addJob:        { en: '+ Add a job you found yourself', nl: '+ Vacature zelf toevoegen' },
+    viewPosting:   { en: 'View posting →', nl: 'Vacature bekijken →' },
+    track:         { en: 'Track ▾',        nl: 'Bijhouden ▾' },
+    new:           { en: 'New',            nl: 'Nieuw' },
+  },
+
+  // ─── Jobs browse ──────────────────────────────────────────────────────────
+  jobs: {
+    title:          { en: 'Job board',          nl: 'Vacaturebord' },
+    sortedByFit:    { en: 'Sorted by your personal fit score', nl: 'Gesorteerd op jouw persoonlijke fit-score' },
+    signInForScore: { en: 'Sign in to see your personal fit score', nl: 'Log in om je persoonlijke fit-score te zien' },
+    searchPlaceholder: { en: 'Search job title or company…', nl: 'Zoek op functie of bedrijf…' },
+    sectors:        { en: 'Sectors',      nl: 'Sectoren' },
+    remoteOnly:     { en: 'Remote only',  nl: 'Alleen remote' },
+    bestMatch:      { en: 'Best match',   nl: 'Beste match' },
+    newest:         { en: 'Newest',       nl: 'Nieuwste' },
+    today:          { en: 'Today',        nl: 'Vandaag' },
+    yesterday:      { en: 'Yesterday',    nl: 'Gisteren' },
+    daysAgo:        { en: '{n}d ago',     nl: '{n}d geleden' },
+    noJobs:         { en: 'No jobs in this category yet.', nl: 'Nog geen vacatures in deze categorie.' },
+    noResults:      { en: 'No jobs found for "{q}".', nl: 'Geen vacatures gevonden voor "{q}".' },
+    signInForScoreBtn: { en: 'Sign in for score', nl: 'Log in voor score' },
+    ctaTitle:       { en: 'See your personal fit score on every job', nl: 'Bekijk je persoonlijke fit-score bij elke vacature' },
+    ctaBody:        { en: 'Upload your resume once. Jobba scores every job against your profile and sends you the best matches every morning.', nl: 'Upload je CV eenmalig. Jobba scoort elke vacature op basis van jouw profiel en stuurt je elke ochtend de beste matches.' },
+    ctaBtn:         { en: 'Get started free →', nl: 'Gratis beginnen →' },
+  },
+
+  // ─── Job detail ───────────────────────────────────────────────────────────
+  jobDetail: {
+    fitScore:       { en: 'Fit score',         nl: 'Fit-score' },
+    whyFit:         { en: 'Why this fits you', nl: 'Waarom dit bij je past' },
+    applyWith:      { en: 'Apply with Jobba',  nl: 'Solliciteren met Jobba' },
+    coverLetter:    { en: 'Cover letter',       nl: 'Motivatiebrief' },
+    tailorResume:   { en: 'Tailor resume',      nl: 'CV aanpassen' },
+    interviewPrep:  { en: 'Interview prep',     nl: 'Sollicitatietraining' },
+    status:         { en: 'Status',             nl: 'Status' },
+    viewOriginal:   { en: 'View original posting →', nl: 'Originele vacature bekijken →' },
+    jobDescription: { en: 'Job description',   nl: 'Vacaturetekst' },
+    salary:         { en: 'Salary',             nl: 'Salaris' },
+    location:       { en: 'Location',           nl: 'Locatie' },
+    remote:         { en: 'Remote',             nl: 'Remote' },
+    source:         { en: 'Source',             nl: 'Bron' },
+  },
+
+  // ─── Profile / Preferences ────────────────────────────────────────────────
+  profile: {
+    title:          { en: 'Profile',            nl: 'Profiel' },
+    fullName:       { en: 'Full name',          nl: 'Volledige naam' },
+    email:          { en: 'Email',              nl: 'E-mailadres' },
+    saveChanges:    { en: 'Save changes',       nl: 'Wijzigingen opslaan' },
+    preferences:    { en: 'Preferences',        nl: 'Voorkeuren' },
+    jobTitles:      { en: 'Job titles',         nl: 'Functietitels' },
+    location:       { en: 'Location',           nl: 'Locatie' },
+    remoteOnly:     { en: 'Remote only',        nl: 'Alleen remote' },
+    dreamCompanies: { en: 'Dream companies',    nl: 'Droomwerkgevers' },
+    sectors:        { en: 'Sector preferences', nl: 'Sectorvoorkeuren' },
+    deleteAccount:  { en: 'Delete account',     nl: 'Account verwijderen' },
+  },
+
+  // ─── Onboarding ───────────────────────────────────────────────────────────
+  onboarding: {
+    uploadTitle:   { en: 'Upload your resume',  nl: 'Upload je CV' },
+    uploadSub:     { en: 'Jobba reads your CV with AI to understand your background and score jobs for fit.', nl: 'Jobba leest je CV met AI om jouw achtergrond te begrijpen en vacatures op fit te scoren.' },
+    clickToSelect: { en: 'Click to select your resume', nl: 'Klik om je CV te selecteren' },
+    fileTypes:     { en: 'PDF or Word (.docx) · Max 5 MB', nl: 'PDF of Word (.docx) · Max 5 MB' },
+    uploadBtn:     { en: 'Upload and analyse →', nl: 'Uploaden en analyseren →' },
+    analysing:     { en: 'Analysing your resume…', nl: 'CV wordt geanalyseerd…' },
+    aiReading:     { en: 'AI is reading your resume — this takes about 15 seconds…', nl: 'AI leest je CV — dit duurt ongeveer 15 seconden…' },
+    privacyNote:   { en: 'Stored securely in the EU · Never used to train AI models.', nl: 'Veilig opgeslagen in de EU · Nooit gebruikt om AI-modellen te trainen.' },
+    prefsTitle:    { en: 'Sharpen your results', nl: 'Verfijn je resultaten' },
+    prefsSub:      { en: 'All optional — skip anything that doesn\'t apply.', nl: 'Allemaal optioneel — sla over wat niet van toepassing is.' },
+  },
+
+  // ─── Common ───────────────────────────────────────────────────────────────
+  common: {
+    loading:    { en: 'Loading…',    nl: 'Laden…' },
+    save:       { en: 'Save',        nl: 'Opslaan' },
+    cancel:     { en: 'Cancel',      nl: 'Annuleren' },
+    back:       { en: '← Back',      nl: '← Terug' },
+    optional:   { en: 'optional',    nl: 'optioneel' },
+    new:        { en: 'New',         nl: 'Nieuw' },
+    generate:   { en: 'Generate',    nl: 'Genereren' },
+    copy:       { en: 'Copy',        nl: 'Kopiëren' },
+    copied:     { en: 'Copied!',     nl: 'Gekopieerd!' },
+    signIn:     { en: 'Sign in',     nl: 'Inloggen' },
+    signUp:     { en: 'Sign up',     nl: 'Aanmelden' },
+    getStarted: { en: 'Get started', nl: 'Aan de slag' },
+    status: {
+      saved:        { en: 'Saved',        nl: 'Opgeslagen' },
+      applied:      { en: 'Applied',      nl: 'Gesolliciteerd' },
+      interviewing: { en: 'Interviewing', nl: 'Interview' },
+      offered:      { en: 'Offered',      nl: 'Aangeboden' },
+      rejected:     { en: 'Rejected',     nl: 'Afgewezen' },
+    },
+  },
+} as const
+
+export type Translations = typeof t

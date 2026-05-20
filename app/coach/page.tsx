@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { AppNav } from '@/components/ui/app-nav'
 
 interface Question {
   id: string
@@ -107,10 +108,7 @@ export default function CoachPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <nav className="border-b px-6 py-4 flex items-center justify-between">
-        <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">← Dashboard</Link>
-        <span className="font-bold">Jobba</span>
-      </nav>
+      <AppNav backHref="/dashboard" backLabel="← Dashboard" />
 
       <main className="max-w-xl mx-auto px-4 py-10">
         <div className="mb-8">
@@ -141,9 +139,14 @@ export default function CoachPage() {
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               {pending.length} question{pending.length !== 1 ? 's' : ''} waiting
             </p>
-            {pending.map(q => (
+            {pending.slice(0, 3).map(q => (
               <QuestionCard key={q.id} q={q} onAnswer={handleAnswer} onDismiss={handleDismiss} />
             ))}
+            {pending.length > 3 && (
+              <p className="text-xs text-muted-foreground text-center pt-1">
+                + {pending.length - 3} more — answer these first to unlock the rest
+              </p>
+            )}
           </div>
         )}
 

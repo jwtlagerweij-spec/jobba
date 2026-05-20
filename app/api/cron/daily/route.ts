@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { fetchAndUpsertJobs, scoreJobsForUser } from '@/lib/pipeline'
+import { fetchAndUpsertJobs, scoreJobsForUser, type ScoringPrefs } from '@/lib/pipeline'
 import { Resend } from 'resend'
 import { render } from '@react-email/components'
 import { DigestEmail, digestSubjectLine } from '@/lib/email-templates/digest'
@@ -30,10 +30,24 @@ export async function GET(req: Request) {
   }
 
   // 2. Collect unique search terms across all users
+  // Prefer manually set job_titles from preferences; fall back to AI-generated titles
+  const { data: allPrefs } = await supabaseAdmin
+    .from('job_preferences')
+    .select('user_id, job_titles, sector_preferences, career_direction, dutch_proficiency, work_arrangement, company_size, salary_min, salary_max, management_level, example_companies, job_level, experience_level')
+    .in('user_id', users.map(u => u.id))
+
+  const prefsByUser = new Map(
+    (allPrefs ?? []).map(p => [p.user_id, p])
+  )
+  const prefTitlesByUser = new Map(
+    (allPrefs ?? []).map(p => [p.user_id, (p.job_titles ?? []) as string[]])
+  )
+
   const allTerms = new Set<string>()
   for (const u of users) {
-    const titles: string[] = u.ai_generated_titles ?? []
-    titles.forEach(t => allTerms.add(t))
+    const prefTitles = prefTitlesByUser.get(u.id) ?? []
+    const titles = prefTitles.length > 0 ? prefTitles : (u.ai_generated_titles ?? [])
+    titles.forEach((t: string) => allTerms.add(t))
   }
 
   // 3. Fetch + upsert jobs once (shared pool)
@@ -66,21 +80,56 @@ export async function GET(req: Request) {
 
       if (!profile?.resume_text) continue
 
+      const userPrefsRow = prefsByUser.get(user.id)
+      const experienceLevel = userPrefsRow?.job_level ?? userPrefsRow?.experience_level ?? 'graduate'
+      const scoringPrefs: ScoringPrefs = {
+        job_titles: userPrefsRow?.job_titles ?? [],
+        sector_preferences: userPrefsRow?.sector_preferences ?? [],
+        career_direction: userPrefsRow?.career_direction ?? null,
+        dutch_proficiency: userPrefsRow?.dutch_proficiency ?? null,
+        work_arrangement: userPrefsRow?.work_arrangement ?? [],
+        company_size: userPrefsRow?.company_size ?? [],
+        salary_min: userPrefsRow?.salary_min ?? null,
+        salary_max: userPrefsRow?.salary_max ?? null,
+        management_level: userPrefsRow?.management_level ?? null,
+        example_companies: userPrefsRow?.example_companies ?? [],
+      }
+
+      const { data: coachRows } = await supabaseAdmin
+        .from('profile_clarifications')
+        .select('question, answer')
+        .eq('user_id', user.id)
+        .not('answer', 'is', null)
+      const coachAnswers = (coachRows ?? []) as { question: string; answer: string }[]
+
       const { data: prefs } = await supabaseAdmin
         .from('job_preferences')
         .select('job_titles, location')
         .eq('user_id', user.id)
         .single()
 
-      // Filter jobs already matched today for this user
-      const { data: existingMatches } = await supabaseAdmin
+      // Also pull all recent DB jobs so every job in browse gets a score
+      const cutoff = new Date()
+      cutoff.setDate(cutoff.getDate() - 45)
+      const { data: allRecentJobs } = await supabaseAdmin
+        .from('jobs')
+        .select('id, title, company, description')
+        .gte('posted_at', cutoff.toISOString())
+        .limit(300)
+
+      const sharedIds = new Set(sharedJobs.map(j => j.id))
+      const extraJobs = (allRecentJobs ?? []).filter(j => !sharedIds.has(j.id))
+      const fullPool = [...sharedJobs, ...extraJobs]
+
+      // Only skip jobs already scored today — allow re-scoring on new days for fresh context
+      const { data: todaysMatches } = await supabaseAdmin
         .from('job_matches')
         .select('job_id')
         .eq('user_id', user.id)
         .eq('batch_date', today)
 
-      const alreadyMatched = new Set((existingMatches ?? []).map(m => m.job_id))
-      const jobsToScore = sharedJobs.filter(j => !alreadyMatched.has(j.id)).slice(0, 40)
+      const alreadyScoredToday = new Set((todaysMatches ?? []).map(m => m.job_id))
+      const jobsToScore = fullPool.filter(j => !alreadyScoredToday.has(j.id)).slice(0, 120)
 
       if (jobsToScore.length > 0) {
         await scoreJobsForUser(
@@ -88,7 +137,10 @@ export async function GET(req: Request) {
           profile.resume_text,
           profile.resume_extracted_keywords ?? '',
           jobsToScore,
-          today
+          today,
+          experienceLevel,
+          scoringPrefs,
+          coachAnswers
         )
       }
 

@@ -17,7 +17,7 @@ interface AdzunaJob {
 
 export interface FetchedJob {
   external_id: string
-  source: 'adzuna'
+  source: string
   title: string
   company: string | null
   location: string | null
@@ -31,7 +31,13 @@ export interface FetchedJob {
   language: string
 }
 
-export async function fetchAdzunaJobs(searchTerm: string, location?: string): Promise<FetchedJob[]> {
+function buildSearchTerm(term: string, jobType: string): string {
+  if (jobType === 'internship') return `${term} stage OR stagiair OR internship`
+  if (jobType === 'traineeship') return `${term} traineeship OR trainee OR graduate`
+  return term
+}
+
+export async function fetchAdzunaJobs(searchTerm: string, location?: string, jobType = 'job'): Promise<FetchedJob[]> {
   if (!APP_ID || !APP_KEY) {
     console.warn('Adzuna API credentials not configured')
     return []
@@ -40,8 +46,8 @@ export async function fetchAdzunaJobs(searchTerm: string, location?: string): Pr
   const params: Record<string, string> = {
     app_id: APP_ID,
     app_key: APP_KEY,
-    results_per_page: '20',
-    what: searchTerm,
+    results_per_page: '50',
+    what: buildSearchTerm(searchTerm, jobType),
   }
 
   // Only pass location if it's a specific city, not a country-level default

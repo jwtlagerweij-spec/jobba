@@ -8,7 +8,8 @@ interface JobRow {
 
 interface MatchRow {
   id: string; fit_score: number; fit_explanation: string
-  user_viewed: boolean; batch_date: string; jobs: JobRow | JobRow[] | null
+  user_viewed: boolean; batch_date: string; user_feedback: number | null
+  jobs: JobRow | JobRow[] | null
 }
 
 function firstJob(jobs: JobRow | JobRow[] | null): JobRow | null {
@@ -21,21 +22,28 @@ export async function GET(req: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { searchParams } = new URL(req.url)
-  const date = searchParams.get('date') ?? new Date().toISOString().split('T')[0]
-
   const { data: matches } = await supabase
     .from('job_matches')
     .select(`
-      id, fit_score, fit_explanation, user_viewed, batch_date,
+      id, fit_score, fit_explanation, user_viewed, batch_date, user_feedback,
       jobs ( id, title, company, location, url, salary_min, salary_max, source, is_remote, posted_at )
     `)
     .eq('user_id', user.id)
-    .eq('batch_date', date)
     .order('fit_score', { ascending: false })
 
   const typedMatches = (matches ?? []) as unknown as MatchRow[]
-  const jobIds = typedMatches.map(m => firstJob(m.jobs)?.id).filter(Boolean) as string[]
+
+  // Deduplicate by job_id — keep the most recent batch_date (rescores always win over old scores)
+  const bestByJob = new Map<string, MatchRow>()
+  for (const m of typedMatches) {
+    const job = firstJob(m.jobs)
+    if (!job) continue
+    const existing = bestByJob.get(job.id)
+    if (!existing || m.batch_date > existing.batch_date) bestByJob.set(job.id, m)
+  }
+  const deduped = [...bestByJob.values()].sort((a, b) => b.fit_score - a.fit_score)
+
+  const jobIds = deduped.map(m => firstJob(m.jobs)?.id).filter(Boolean) as string[]
 
   const { data: applications } = jobIds.length > 0
     ? await supabase.from('applications').select('job_id, status').eq('user_id', user.id).in('job_id', jobIds)
@@ -43,11 +51,11 @@ export async function GET(req: Request) {
 
   const statusMap = new Map((applications ?? []).map((a: { job_id: string; status: string }) => [a.job_id, a.status]))
 
-  const result = typedMatches.map(m => ({
+  const result = deduped.map(m => ({
     ...m,
     jobs: firstJob(m.jobs),
     application_status: statusMap.get(firstJob(m.jobs)?.id ?? '') ?? null,
   }))
 
-  return NextResponse.json({ matches: result, date })
+  return NextResponse.json({ matches: result })
 }

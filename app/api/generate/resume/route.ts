@@ -2,6 +2,7 @@ import { streamText } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
 import { createClient } from '@/lib/supabase-server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { ensureJobUnlocked } from '@/lib/credits'
 
 export async function POST(req: Request) {
   const supabase = await createClient()
@@ -17,9 +18,9 @@ export async function POST(req: Request) {
     .single()
 
   if (!profile?.resume_text) return Response.json({ error: 'No resume found.' }, { status: 400 })
-  if ((profile.ai_credits_remaining ?? 0) <= 0) {
-    return Response.json({ error: 'No credits remaining.' }, { status: 402 })
-  }
+
+  const unlock = await ensureJobUnlocked(user.id, job_id)
+  if (!unlock.ok) return Response.json({ error: unlock.reason ?? 'No credits remaining.' }, { status: 402 })
 
   const { data: job } = await supabaseAdmin
     .from('jobs')
@@ -58,17 +59,14 @@ Instructions:
     model: anthropic('claude-sonnet-4-6'),
     prompt,
     onFinish: async ({ text }) => {
-      await Promise.all([
-        supabaseAdmin.from('tailored_resumes').upsert({
-          user_id: user.id,
-          job_id,
-          original_text: profile.resume_text,
-          tailored_text: text,
-          version: newVersion,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id,job_id' }),
-        supabaseAdmin.rpc('decrement_credits', { uid: user.id }),
-      ])
+      await supabaseAdmin.from('tailored_resumes').upsert({
+        user_id: user.id,
+        job_id,
+        original_text: profile.resume_text,
+        tailored_text: text,
+        version: newVersion,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,job_id' })
     },
   })
 

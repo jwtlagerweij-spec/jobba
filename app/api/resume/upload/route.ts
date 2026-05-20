@@ -3,6 +3,10 @@ import { createClient } from '@/lib/supabase-server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { generateText } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
+import mammoth from 'mammoth'
+
+const ALLOWED_TYPES = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+const MAX_SIZE = 5 * 1024 * 1024
 
 export async function POST(req: Request) {
   const supabase = await createClient()
@@ -11,19 +15,24 @@ export async function POST(req: Request) {
 
   const formData = await req.formData()
   const file = formData.get('resume') as File | null
-  if (!file || file.type !== 'application/pdf') {
-    return NextResponse.json({ error: 'Please upload a PDF file.' }, { status: 400 })
+
+  if (!file || !ALLOWED_TYPES.includes(file.type)) {
+    return NextResponse.json({ error: 'Please upload a PDF or Word (.docx) file.' }, { status: 400 })
   }
-  if (file.size > 5 * 1024 * 1024) {
+  if (file.size > MAX_SIZE) {
     return NextResponse.json({ error: 'File must be under 5 MB.' }, { status: 400 })
   }
 
-  // Upload to Supabase Storage (bucket: 'resumes' — create this in Supabase dashboard)
   const fileBytes = await file.arrayBuffer()
+  const isPdf = file.type === 'application/pdf'
+
+  // Upload to Supabase Storage
+  const ext = isPdf ? 'pdf' : 'docx'
+  const storagePath = `${user.id}/resume.${ext}`
   const { error: uploadError } = await supabaseAdmin.storage
     .from('resumes')
-    .upload(`${user.id}/resume.pdf`, fileBytes, {
-      contentType: 'application/pdf',
+    .upload(storagePath, fileBytes, {
+      contentType: file.type,
       upsert: true,
     })
   if (uploadError) {
@@ -33,10 +42,9 @@ export async function POST(req: Request) {
 
   const { data: { publicUrl } } = supabaseAdmin.storage
     .from('resumes')
-    .getPublicUrl(`${user.id}/resume.pdf`)
+    .getPublicUrl(storagePath)
 
-  // Send PDF to Claude for extraction
-  const prompt = `You are analyzing a resume PDF. Extract information and return ONLY valid JSON with this exact structure:
+  const prompt = `You are analyzing a resume. Extract information and return ONLY valid JSON with this exact structure:
 {
   "resume_text": "full verbatim text of the resume",
   "keywords": "comma-separated list: skills, tools, sectors, seniority level, education",
@@ -54,34 +62,49 @@ Return only the JSON object, no markdown, no explanation.`
   }
 
   try {
-    const { text } = await generateText({
-      model: anthropic('claude-sonnet-4-6'),
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'file',
-              data: new Uint8Array(fileBytes),
-              mediaType: 'application/pdf',
-            },
-            {
-              type: 'text',
-              text: prompt,
-            },
-          ],
-        },
-      ],
-    })
-
-    const cleaned = text.trim().replace(/^```json\n?/, '').replace(/\n?```$/, '')
-    extractedData = JSON.parse(cleaned)
+    if (isPdf) {
+      // Send PDF as document block to Claude
+      const { text } = await generateText({
+        model: anthropic('claude-sonnet-4-6'),
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'file',
+                data: new Uint8Array(fileBytes),
+                mediaType: 'application/pdf',
+              },
+              {
+                type: 'text',
+                text: prompt,
+              },
+            ],
+          },
+        ],
+      })
+      const cleaned = text.trim().replace(/^```json\n?/, '').replace(/\n?```$/, '')
+      extractedData = JSON.parse(cleaned)
+    } else {
+      // Extract text from .docx using mammoth, then send as plain text to Claude
+      const { value: docText } = await mammoth.extractRawText({ buffer: Buffer.from(fileBytes) })
+      const { text } = await generateText({
+        model: anthropic('claude-sonnet-4-6'),
+        messages: [
+          {
+            role: 'user',
+            content: `Here is the resume text extracted from a Word document:\n\n${docText}\n\n${prompt}`,
+          },
+        ],
+      })
+      const cleaned = text.trim().replace(/^```json\n?/, '').replace(/\n?```$/, '')
+      extractedData = JSON.parse(cleaned)
+    }
   } catch (err) {
-    console.error('Claude extraction error:', err)
+    console.error('Resume extraction error:', err)
     return NextResponse.json({ error: 'Failed to process resume. Please try again.' }, { status: 500 })
   }
 
-  // Save to profiles
   const { error: profileError } = await supabaseAdmin
     .from('profiles')
     .update({

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { downloadAsPDF, downloadAsWord } from '@/lib/download'
+import { AppNav } from '@/components/ui/app-nav'
 
 export default function ResumePage() {
   const params = useParams()
@@ -86,12 +87,7 @@ export default function ResumePage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <nav className="border-b px-6 py-4 flex items-center gap-4">
-        <Link href={`/jobs/${jobId}`} className="text-sm text-muted-foreground hover:text-foreground">
-          ← {jobTitle || 'Job'}
-        </Link>
-        <span className="font-bold ml-auto">Jobba</span>
-      </nav>
+      <AppNav backHref={`/jobs/${jobId}`} backLabel={`← ${jobTitle || 'Job'}`} />
 
       <main className="max-w-5xl mx-auto px-4 py-10">
         <div className="flex items-center justify-between mb-6">

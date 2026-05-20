@@ -3,181 +3,88 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase'
 import { CompanyLogo } from '@/components/ui/company-logo'
-import { Button } from '@/components/ui/button'
+import { AppNav } from '@/components/ui/app-nav'
+import { useLanguage, t } from '@/lib/language-context'
 
-interface Job {
-  id: string
-  title: string
-  company: string | null
-  location: string | null
-  url: string
-  salary_min: number | null
-  salary_max: number | null
-  source: string
-  is_remote: boolean
-  posted_at: string | null
-}
-
-interface Match {
+interface TopMatch {
   id: string
   fit_score: number
   fit_explanation: string | null
   user_viewed: boolean
   batch_date: string
-  jobs: Job | null
-  application_status: string | null
+  job: {
+    id: string
+    title: string
+    company: string | null
+    location: string | null
+    is_remote: boolean
+    source: string
+    url: string
+    salary_min: number | null
+    salary_max: number | null
+  } | null
 }
 
-function ScoreBadge({ score }: { score: number }) {
-  const color =
-    score >= 8 ? 'bg-green-100 text-green-800 border-green-200' :
-    score >= 6 ? 'bg-amber-100 text-amber-800 border-amber-200' :
-                 'bg-red-100 text-red-800 border-red-200'
-  return (
-    <span className={`inline-flex items-center justify-center w-10 h-10 rounded-full border-2 text-sm font-bold shrink-0 ${color}`}>
-      {score}
-    </span>
-  )
+interface Overview {
+  top_matches: TopMatch[]
+  total_matches: number
+  new_matches: number
+  last_scored: string | null
+  application_counts: Record<string, number>
+  total_applications: number
+  coach_pending: number
 }
 
-function SourceBadge({ source }: { source: string }) {
-  const labels: Record<string, string> = { adzuna: 'Adzuna', nvb: 'NVB', intermediair: 'Intermediair' }
-  return (
-    <span className="text-xs border rounded px-1.5 py-0.5 text-muted-foreground">
-      {labels[source] ?? source}
-    </span>
-  )
+const STATUS_COLOR: Record<string, string> = {
+  saved: 'text-slate-600 bg-slate-50 border-slate-200',
+  applied: 'text-blue-600 bg-blue-50 border-blue-200',
+  interviewing: 'text-purple-600 bg-purple-50 border-purple-200',
+  offered: 'text-green-600 bg-green-50 border-green-200',
+  rejected: 'text-red-500 bg-red-50 border-red-200',
 }
 
-function StatusChip({ status, jobId, onUpdate }: { status: string | null; jobId: string; onUpdate: (jobId: string, status: string) => void }) {
-  const options = ['saved', 'applied', 'interviewing', 'offered', 'rejected']
-  const colors: Record<string, string> = {
-    saved: 'bg-muted text-muted-foreground',
-    applied: 'bg-blue-100 text-blue-800',
-    interviewing: 'bg-purple-100 text-purple-800',
-    offered: 'bg-green-100 text-green-800',
-    rejected: 'bg-red-100 text-red-800',
-  }
+const STATUS_ORDER = ['saved', 'applied', 'interviewing', 'offered', 'rejected']
 
-  async function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const newStatus = e.target.value
-    onUpdate(jobId, newStatus)
-    await fetch('/api/applications', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ job_id: jobId, status: newStatus }),
-    })
-  }
+function ScoreDot({ score }: { score: number }) {
+  const cls = score >= 8 ? 'bg-green-500' : score >= 6 ? 'bg-amber-400' : 'bg-slate-300'
+  return <span className={`inline-block w-2 h-2 rounded-full ${cls} shrink-0`} />
+}
 
-  const current = status ?? 'save'
+function MatchMiniCard({ match, onNavigate }: { match: TopMatch; onNavigate: (matchId: string, jobId: string) => void }) {
+  const job = match.job
+  if (!job) return null
+  const scoreColor = match.fit_score >= 8
+    ? 'bg-green-50 text-green-700 border-green-200'
+    : match.fit_score >= 6
+    ? 'bg-amber-50 text-amber-700 border-amber-200'
+    : 'bg-slate-50 text-slate-500 border-slate-200'
+
   return (
-    <select
-      value={status ?? ''}
-      onChange={handleChange}
-      onClick={e => e.stopPropagation()}
-      className={`text-xs rounded-full px-2 py-1 border-0 cursor-pointer font-medium ${colors[current] ?? 'bg-muted text-muted-foreground'}`}
+    <div
+      onClick={() => onNavigate(match.id, job.id)}
+      className="group rounded-xl border bg-card hover:border-primary/30 hover:shadow-sm transition-all cursor-pointer relative overflow-hidden"
     >
-      <option value="">Track status</option>
-      {options.map(o => <option key={o} value={o}>{o.charAt(0).toUpperCase() + o.slice(1)}</option>)}
-    </select>
-  )
-}
-
-function AddJobForm({ onAdded }: { onAdded: (match: Match) => void }) {
-  const [open, setOpen] = useState(false)
-  const [url, setUrl] = useState('')
-  const [manualText, setManualText] = useState('')
-  const [needsManual, setNeedsManual] = useState(false)
-  const [importing, setImporting] = useState(false)
-
-  async function handleImport() {
-    if (!url.trim() && !manualText.trim()) return
-    setImporting(true)
-    setNeedsManual(false)
-
-    const res = await fetch('/api/jobs/import', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: url.trim() || undefined, manual_text: manualText.trim() || undefined }),
-    })
-
-    const data = await res.json()
-
-    if (res.status === 422 && data.needs_manual) {
-      setNeedsManual(true)
-      setImporting(false)
-      toast.info("Couldn't fetch the page automatically — paste the job description below.")
-      return
-    }
-
-    if (!res.ok) {
-      toast.error(data.error ?? 'Import failed.')
-      setImporting(false)
-      return
-    }
-
-    toast.success(`Added: ${data.title}`)
-    setOpen(false)
-    setUrl('')
-    setManualText('')
-    // Refresh matches
-    fetch('/api/matches')
-      .then(r => r.json())
-      .then(d => { if (d.matches?.length) onAdded(d.matches[0]) })
-    setImporting(false)
-  }
-
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="w-full rounded-xl border-2 border-dashed border-muted-foreground/20 hover:border-muted-foreground/40 py-4 text-sm text-muted-foreground hover:text-foreground transition-colors"
-      >
-        + Add a job you found yourself
-      </button>
-    )
-  }
-
-  return (
-    <div className="rounded-xl border bg-card p-5 space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold">Add a job from LinkedIn, Indeed, or anywhere</p>
-        <button onClick={() => { setOpen(false); setNeedsManual(false) }} className="text-muted-foreground hover:text-foreground text-lg">×</button>
-      </div>
-
-      <input
-        type="url"
-        value={url}
-        onChange={e => setUrl(e.target.value)}
-        placeholder="https://www.linkedin.com/jobs/view/..."
-        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-      />
-
-      {needsManual && (
-        <div>
-          <p className="text-xs text-muted-foreground mb-1">
-            The page couldn&apos;t be fetched automatically (LinkedIn requires login). Paste the job description here:
-          </p>
-          <textarea
-            value={manualText}
-            onChange={e => setManualText(e.target.value)}
-            rows={6}
-            placeholder="Paste the full job description here…"
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-          />
-        </div>
+      {!match.user_viewed && (
+        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-primary to-primary/40" />
       )}
-
-      <div className="flex gap-2">
-        <Button onClick={handleImport} disabled={importing || (!url.trim() && !manualText.trim())} size="sm" className="flex-1">
-          {importing ? 'Analysing job…' : 'Import and score'}
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => { setOpen(false); setNeedsManual(false) }}>
-          Cancel
-        </Button>
+      <div className="p-4 flex items-center gap-3">
+        <CompanyLogo company={job.company ?? 'Company'} size={40} />
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-sm leading-tight truncate">{job.title}</p>
+          <p className="text-xs text-muted-foreground mt-0.5 truncate">
+            {job.company ?? 'Unknown'} · {job.location ?? 'Netherlands'}
+          </p>
+        </div>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <span className={`text-xs font-bold border rounded-full px-2 py-0.5 ${scoreColor}`}>
+            {match.fit_score}/10
+          </span>
+          {!match.user_viewed && (
+            <span className="text-[10px] text-primary font-medium">New</span>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -185,9 +92,10 @@ function AddJobForm({ onAdded }: { onAdded: (match: Match) => void }) {
 
 export default function DashboardPage() {
   const router = useRouter()
-  const [matches, setMatches] = useState<Match[]>([])
-  const [loading, setLoading] = useState(true)
+  const { tr } = useLanguage()
+  const [overview, setOverview] = useState<Overview | null>(null)
   const [userName, setUserName] = useState('')
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const supabase = createClient()
@@ -195,139 +103,225 @@ export default function DashboardPage() {
       if (data?.full_name) setUserName(data.full_name.split(' ')[0])
     })
 
-    fetch('/api/matches')
+    fetch('/api/dashboard/overview')
       .then(r => r.json())
-      .then(data => setMatches(data.matches ?? []))
+      .then(setOverview)
       .finally(() => setLoading(false))
   }, [])
 
-  function markViewed(matchId: string, jobId: string) {
-    setMatches(prev => prev.map(m => m.id === matchId ? { ...m, user_viewed: true } : m))
+  function handleMatchClick(matchId: string, jobId: string) {
     fetch(`/api/matches/${matchId}/viewed`, { method: 'PATCH' }).catch(() => {})
     router.push(`/jobs/${jobId}`)
   }
 
-  function updateStatus(jobId: string, status: string) {
-    setMatches(prev => prev.map(m => m.jobs?.id === jobId ? { ...m, application_status: status } : m))
-  }
-
-  const greeting = userName ? `Good morning, ${userName}` : 'Good morning'
   const today = new Date().toLocaleDateString('en-NL', { weekday: 'long', day: 'numeric', month: 'long' })
+  const hour = new Date().getHours()
+  const greeting = hour < 12 ? tr(t.dashboard.goodMorning) : hour < 17 ? tr(t.dashboard.goodAfternoon) : tr(t.dashboard.goodEvening)
+
+  const appCounts = overview?.application_counts ?? {}
+  const activeStatuses = STATUS_ORDER.filter(s => (appCounts[s] ?? 0) > 0)
+
+  const lastScoredLabel = overview?.last_scored
+    ? new Date(overview.last_scored).toLocaleDateString('en-NL', { day: 'numeric', month: 'short' })
+    : null
 
   return (
-    <div className="min-h-screen bg-background">
-      <nav className="border-b px-6 py-4 flex items-center justify-between">
-        <span className="font-bold text-lg">Jobba</span>
-        <div className="flex items-center gap-4 text-sm">
-          <Link href="/coach" className="text-muted-foreground hover:text-foreground">Coach</Link>
-          <Link href="/applications" className="text-muted-foreground hover:text-foreground">Applications</Link>
-          <Link href="/profile" className="text-muted-foreground hover:text-foreground">Profile</Link>
-        </div>
-      </nav>
+    <div className="min-h-screen bg-muted/30">
+      <AppNav />
 
-      <main className="max-w-2xl mx-auto px-4 py-10">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold">{greeting}</h1>
-          <p className="text-sm text-muted-foreground mt-1">{today} · {matches.length} match{matches.length !== 1 ? 'es' : ''} today</p>
+      <main className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+
+        {/* Greeting */}
+        <div>
+          <h1 className="text-2xl font-bold">
+            {greeting}{userName ? `, ${userName}` : ''} 👋
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {today}
+            {overview && overview.total_matches > 0 && (
+              <>
+                {' · '}
+                <span className="font-medium text-foreground">{overview.total_matches}</span> {tr(t.dashboard.matches)}
+                {overview.new_matches > 0 && (
+                  <> · <span className="text-primary font-medium">{overview.new_matches} {tr(t.dashboard.new)}</span></>
+                )}
+                {lastScoredLabel && (
+                  <> · {tr(t.dashboard.lastScored)} {lastScoredLabel}</>
+                )}
+              </>
+            )}
+          </p>
         </div>
 
-        <div className="mb-6">
-          <AddJobForm onAdded={m => setMatches(prev => [m, ...prev.filter(x => x.jobs?.id !== m.jobs?.id)])} />
-        </div>
+        {/* Top matches */}
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <ScoreDot score={9} />
+              <h2 className="text-sm font-semibold">{tr(t.dashboard.topMatches)}</h2>
+            </div>
+            <Link
+              href="/matches"
+              className="text-xs text-primary hover:opacity-75 font-medium transition-opacity"
+            >
+              {tr(t.dashboard.seeAll)} {overview?.total_matches ?? ''} →
+            </Link>
+          </div>
 
-        {loading && (
-          <div className="space-y-4">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="rounded-xl border p-5 animate-pulse">
-                <div className="flex gap-4">
-                  <div className="w-10 h-10 rounded-full bg-muted shrink-0" />
+          {loading && (
+            <div className="space-y-2">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="rounded-xl border bg-card p-4 animate-pulse flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-muted shrink-0" />
                   <div className="flex-1 space-y-2">
-                    <div className="h-4 bg-muted rounded w-3/4" />
-                    <div className="h-3 bg-muted rounded w-1/2" />
-                    <div className="h-3 bg-muted rounded w-full" />
+                    <div className="h-3.5 bg-muted rounded w-2/3" />
+                    <div className="h-3 bg-muted rounded w-1/3" />
                   </div>
+                  <div className="w-10 h-5 bg-muted rounded-full" />
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
 
-        {!loading && matches.length === 0 && (
-          <div className="rounded-xl border border-dashed p-10 text-center">
-            <p className="text-2xl mb-3">🔍</p>
-            <h2 className="font-semibold mb-1">No matches yet</h2>
-            <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-              Your first job matches will appear here. The daily scan runs every morning at 9am — check back tomorrow.
-            </p>
-          </div>
-        )}
+          {!loading && (overview?.top_matches.length ?? 0) === 0 && (
+            <div className="rounded-xl border border-dashed bg-card p-8 text-center">
+              <p className="text-2xl mb-2">🔍</p>
+              <p className="text-sm font-medium mb-1">{tr(t.dashboard.noMatchesYet)}</p>
+              <p className="text-xs text-muted-foreground">{tr(t.dashboard.noMatchesSub)}</p>
+            </div>
+          )}
 
-        {!loading && matches.length > 0 && (
-          <div className="space-y-4">
-            {matches.map(match => {
-              const job = match.jobs
-              if (!job) return null
-              return (
-                <div
-                  key={match.id}
-                  className="rounded-xl border bg-card p-5 hover:border-foreground/30 transition-colors cursor-pointer relative"
-                  onClick={() => markViewed(match.id, job.id)}
+          {!loading && (overview?.top_matches.length ?? 0) > 0 && (
+            <div className="space-y-2">
+              {overview!.top_matches.map(match => (
+                <MatchMiniCard key={match.id} match={match} onNavigate={handleMatchClick} />
+              ))}
+              {(overview?.total_matches ?? 0) > 3 && (
+                <Link
+                  href="/matches"
+                  className="block rounded-xl border border-dashed bg-card hover:bg-muted/40 transition-colors p-3 text-center text-xs text-muted-foreground hover:text-foreground"
                 >
-                  {!match.user_viewed && (
-                    <span className="absolute top-4 right-4 text-xs bg-blue-100 text-blue-800 rounded-full px-2 py-0.5 font-medium">
-                      New
-                    </span>
-                  )}
-                  {/* Header: logo + title + score */}
-                  <div className="flex items-start gap-3">
-                    <CompanyLogo company={job.company ?? 'Company'} size={44} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <h3 className="font-semibold text-sm leading-snug">{job.title}</h3>
-                          <p className="text-sm text-muted-foreground mt-0.5">
-                            {job.company ?? 'Unknown company'} · {job.location ?? 'Location unknown'}
-                            {job.is_remote && ' · Remote'}
-                          </p>
-                        </div>
-                        <ScoreBadge score={match.fit_score} />
-                      </div>
+                  + {(overview?.total_matches ?? 0) - 3} more matches — view all →
+                </Link>
+              )}
+            </div>
+          )}
+        </section>
+
+        {/* Applications + Coach row */}
+        <div className="grid sm:grid-cols-2 gap-4">
+
+          {/* Applications */}
+          <section className="rounded-xl border bg-card p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold">{tr(t.dashboard.applications)}</h2>
+              <Link href="/applications" className="text-xs text-primary hover:opacity-75 font-medium transition-opacity">
+                {tr(t.dashboard.openTracker)}
+              </Link>
+            </div>
+
+            {loading && (
+              <div className="space-y-2">
+                {[1, 2, 3].map(i => <div key={i} className="h-7 bg-muted rounded-lg animate-pulse" />)}
+              </div>
+            )}
+
+            {!loading && overview?.total_applications === 0 && (
+              <div className="py-4 text-center">
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  No applications tracked yet.
+                  <br />Save a match to start tracking.
+                </p>
+                <Link href="/matches" className="mt-3 inline-block text-xs text-primary font-medium hover:opacity-75">
+                  Go to your matches →
+                </Link>
+              </div>
+            )}
+
+            {!loading && (overview?.total_applications ?? 0) > 0 && (
+              <div className="space-y-2">
+                {activeStatuses.length > 0 ? (
+                  activeStatuses.map(status => (
+                    <div key={status} className="flex items-center justify-between">
+                      <span className={`text-xs font-medium border rounded-full px-2.5 py-1 ${STATUS_COLOR[status]}`}>
+                        {status.charAt(0).toUpperCase() + status.slice(1)}
+                      </span>
+                      <span className="text-sm font-bold">{appCounts[status]}</span>
                     </div>
-                  </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-muted-foreground">All clear — nothing in progress.</p>
+                )}
+              </div>
+            )}
+          </section>
 
-                  {/* Salary */}
-                  {(job.salary_min || job.salary_max) && (
-                    <p className="text-xs text-muted-foreground mt-2">
-                      €{job.salary_min?.toLocaleString()} – €{job.salary_max?.toLocaleString()}
+          {/* AI Coach */}
+          <section className="rounded-xl border bg-card p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold">{tr(t.dashboard.aiCoach)}</h2>
+              <Link href="/coach" className="text-xs text-primary hover:opacity-75 font-medium transition-opacity">
+                {tr(t.dashboard.goToCoach)}
+              </Link>
+            </div>
+
+            {loading && (
+              <div className="space-y-2">
+                <div className="h-12 bg-muted rounded-lg animate-pulse" />
+                <div className="h-7 bg-muted rounded-lg animate-pulse w-2/3" />
+              </div>
+            )}
+
+            {!loading && (overview?.coach_pending ?? 0) === 0 && (
+              <div className="flex flex-col items-center justify-center py-4 text-center gap-2">
+                <span className="text-2xl">✓</span>
+                <p className="text-sm font-medium">{tr(t.dashboard.allCaughtUp)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {tr(t.dashboard.coachSub)}
+                </p>
+              </div>
+            )}
+
+            {!loading && (overview?.coach_pending ?? 0) > 0 && (
+              <div className="space-y-3">
+                <div className="rounded-lg bg-primary/5 border border-primary/15 px-4 py-3 flex items-center gap-3">
+                  <span className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold shrink-0">
+                    {overview!.coach_pending}
+                  </span>
+                  <div>
+                    <p className="text-sm font-medium">
+                      {overview!.coach_pending === 1 ? '1 question' : `${overview!.coach_pending} questions`} waiting
                     </p>
-                  )}
-
-                  {/* Fit explanation */}
-                  {match.fit_explanation && (
-                    <p className="text-sm mt-3 leading-relaxed text-foreground/80 border-t pt-3">
-                      {match.fit_explanation}
-                    </p>
-                  )}
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-3 mt-3 flex-wrap">
-                    <SourceBadge source={job.source} />
-                    <StatusChip status={match.application_status} jobId={job.id} onUpdate={updateStatus} />
-                    <a
-                      href={job.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={e => e.stopPropagation()}
-                      className="text-xs underline text-muted-foreground hover:text-foreground ml-auto"
-                    >
-                      View job →
-                    </a>
+                    <p className="text-xs text-muted-foreground">Answering improves your match scores</p>
                   </div>
                 </div>
-              )
-            })}
-          </div>
-        )}
+                <Link
+                  href="/coach"
+                  className="block w-full rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-4 py-2.5 text-center text-xs font-medium text-primary"
+                >
+                  Answer questions →
+                </Link>
+              </div>
+            )}
+          </section>
+        </div>
+
+        {/* Browse jobs teaser */}
+        <section>
+          <Link
+            href="/jobs"
+            className="flex items-center justify-between rounded-xl border bg-card hover:border-primary/30 hover:shadow-sm transition-all p-5 group"
+          >
+            <div>
+              <p className="text-sm font-semibold">Browse all jobs</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Search and filter all Dutch vacancies — sorted by your fit score
+              </p>
+            </div>
+            <span className="text-muted-foreground group-hover:text-primary transition-colors text-lg">→</span>
+          </Link>
+        </section>
+
       </main>
     </div>
   )

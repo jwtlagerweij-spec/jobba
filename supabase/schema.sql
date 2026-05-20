@@ -58,17 +58,32 @@ $$;
 
 -- ── job_preferences ───────────────────────────────────────
 create table public.job_preferences (
-  id                   uuid primary key default gen_random_uuid(),
-  user_id              uuid not null references public.profiles(id) on delete cascade,
-  job_titles           text[],
-  location             text,
-  radius_km            int default 50,
-  remote_only          boolean default false,
-  example_companies    text[],
-  sector_preferences   text[],
+  id                    uuid primary key default gen_random_uuid(),
+  user_id               uuid not null references public.profiles(id) on delete cascade,
+  job_titles            text[],
+  location              text,
+  radius_km             int default 50,
+  remote_only           boolean default false,
+  example_companies     text[],
+  sector_preferences    text[],
   use_resume_for_search boolean default true,
-  created_at           timestamptz default now(),
-  updated_at           timestamptz default now(),
+  -- career level fields
+  job_type              text default 'job',
+  job_types             text[] default array['job'],
+  experience_level      text default 'graduate',
+  job_level             text default 'graduate',
+  years_in_field        text default '0-2',
+  years_total           text default '0-2',
+  -- matching enrichment fields
+  salary_min            int,
+  salary_max            int,
+  work_arrangement      text[],            -- remote / hybrid / onsite
+  company_size          text[],            -- startup / scaleup / sme / corporate / multinational
+  career_direction      text,              -- free-text: "transitioning from X to Y"
+  dutch_proficiency     text,              -- native / fluent / basic / none
+  management_level      text,              -- ic / lead / manager / director / executive
+  created_at            timestamptz default now(),
+  updated_at            timestamptz default now(),
   unique(user_id)
 );
 
@@ -106,6 +121,7 @@ create table public.job_matches (
   fit_explanation  text,
   email_sent       boolean default false,
   user_viewed      boolean default false,
+  user_feedback    smallint check (user_feedback in (-1, 1)),  -- 1 = thumbs up, -1 = thumbs down
   created_at       timestamptz default now(),
   unique(user_id, job_id, batch_date)
 );
