@@ -113,6 +113,7 @@ export default function PreferencesPage() {
   const [jobTypes, setJobTypes] = useState<string[]>(['job'])
   const [jobLevel, setJobLevel] = useState('graduate')
   const [yearsInField, setYearsInField] = useState('0-2')
+  const [jobTitles, setJobTitles] = useState<string[]>([])
   const [location, setLocation] = useState('')
   const [workArrangement, setWorkArrangement] = useState<string[]>([])
   const [companies, setCompanies] = useState<string[]>([])
@@ -165,6 +166,7 @@ export default function PreferencesPage() {
           job_types: jobTypes,
           job_level: jobLevel,
           years_in_field: yearsInField,
+          job_titles: jobTitles,
           location: location || null,
           work_arrangement: workArrangement.length > 0 ? workArrangement : null,
           example_companies: companies,
@@ -317,6 +319,30 @@ export default function PreferencesPage() {
               placeholder="e.g. Transitioning from marketing to data analytics. I have strong Excel skills and want to move into SQL and BI roles."
               rows={3}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+            />
+          </div>
+
+          {/* Job titles */}
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Job titles you&apos;re targeting <span className="text-muted-foreground font-normal">(optional)</span>
+            </label>
+            <p className="text-xs text-muted-foreground mb-2">
+              These drive your daily job search. We already generated suggestions from your CV — add or override them here.
+            </p>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {jobTitles.map((t, i) => (
+                <span key={i} className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs">
+                  {t}
+                  <button onClick={() => setJobTitles(jobTitles.filter((_, idx) => idx !== i))} className="text-muted-foreground hover:text-foreground">×</button>
+                </span>
+              ))}
+            </div>
+            <input
+              type="text"
+              placeholder="e.g. Data Analyst — press Enter to add"
+              onKeyDown={e => addTag(e, jobTitles, setJobTitles)}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
 

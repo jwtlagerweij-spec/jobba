@@ -49,7 +49,8 @@ export async function POST(req: Request) {
   "resume_text": "full verbatim text of the resume",
   "keywords": "comma-separated list: skills, tools, sectors, seniority level, education",
   "job_titles": ["4 to 6 search terms in Dutch and English based on this person's background — mix specific titles and broader terms"],
-  "profile_summary": "2-3 sentence friendly summary: who this person is, their background, and what kind of role they're looking for. Write as if you're describing them to a recruiter. Be specific and warm."
+  "profile_summary": "2-3 sentence friendly summary: who this person is, their background, and what kind of role they're looking for. Write as if you're describing them to a recruiter. Be specific and warm.",
+  "experience_level": "one of: student, graduate, junior, medior, senior, lead — infer from total years of work experience: student=currently studying, graduate=0-1yr, junior=1-3yr, medior=3-6yr, senior=6-12yr, lead=12+yr or current people-manager/principal"
 }
 
 Return only the JSON object, no markdown, no explanation.`
@@ -59,6 +60,7 @@ Return only the JSON object, no markdown, no explanation.`
     keywords: string
     job_titles: string[]
     profile_summary: string
+    experience_level: string
   }
 
   try {
@@ -105,6 +107,11 @@ Return only the JSON object, no markdown, no explanation.`
     return NextResponse.json({ error: 'Failed to process resume. Please try again.' }, { status: 500 })
   }
 
+  const validLevels = ['student', 'graduate', 'junior', 'medior', 'senior', 'lead']
+  const inferredLevel = validLevels.includes(extractedData.experience_level)
+    ? extractedData.experience_level
+    : 'graduate'
+
   const { error: profileError } = await supabaseAdmin
     .from('profiles')
     .update({
@@ -121,9 +128,28 @@ Return only the JSON object, no markdown, no explanation.`
     return NextResponse.json({ error: 'Failed to save profile.' }, { status: 500 })
   }
 
+  // Seed job_preferences with inferred level if the user has no preferences row yet
+  // or is still at the default 'graduate' value (meaning they haven't manually set it)
+  const { data: existingPrefs } = await supabaseAdmin
+    .from('job_preferences')
+    .select('job_level')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (!existingPrefs || existingPrefs.job_level === 'graduate') {
+    await supabaseAdmin
+      .from('job_preferences')
+      .upsert({
+        user_id: user.id,
+        job_level: inferredLevel,
+        experience_level: inferredLevel,
+      }, { onConflict: 'user_id' })
+  }
+
   return NextResponse.json({
     profile_summary: extractedData.profile_summary,
     job_titles: extractedData.job_titles,
     keywords: extractedData.keywords,
+    experience_level: inferredLevel,
   })
 }

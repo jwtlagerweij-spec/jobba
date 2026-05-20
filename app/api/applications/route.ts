@@ -23,6 +23,17 @@ export async function POST(req: Request) {
 
   const { job_id, status, notes } = await req.json()
 
+  // Only set applied_at when first marking as applied — never overwrite or null it out
+  const { data: existing } = await supabaseAdmin
+    .from('applications')
+    .select('applied_at')
+    .eq('user_id', user.id)
+    .eq('job_id', job_id)
+    .maybeSingle()
+
+  const appliedAt = existing?.applied_at
+    ?? (status === 'applied' ? new Date().toISOString() : null)
+
   const { error } = await supabaseAdmin
     .from('applications')
     .upsert({
@@ -30,7 +41,7 @@ export async function POST(req: Request) {
       job_id,
       status: status ?? 'saved',
       notes: notes ?? null,
-      applied_at: status === 'applied' ? new Date().toISOString() : null,
+      applied_at: appliedAt,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id,job_id' })
 

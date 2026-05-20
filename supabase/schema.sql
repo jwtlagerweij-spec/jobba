@@ -91,7 +91,7 @@ create table public.job_preferences (
 create table public.jobs (
   id           uuid primary key default gen_random_uuid(),
   external_id  text not null,
-  source       text not null check (source in ('adzuna', 'nvb', 'intermediair')),
+  source       text not null check (source in ('adzuna', 'nvb', 'intermediair', 'manual', 'jobbird')),
   title        text not null,
   company      text,
   location     text,
@@ -121,6 +121,7 @@ create table public.job_matches (
   fit_explanation  text,
   email_sent       boolean default false,
   user_viewed      boolean default false,
+  ai_unlocked      boolean default false,
   user_feedback    smallint check (user_feedback in (-1, 1)),  -- 1 = thumbs up, -1 = thumbs down
   created_at       timestamptz default now(),
   unique(user_id, job_id, batch_date)
@@ -134,7 +135,7 @@ create table public.cover_letters (
   user_id    uuid not null references public.profiles(id) on delete cascade,
   job_id     uuid not null references public.jobs(id) on delete cascade,
   content    text not null,
-  tone       text default 'warm' check (tone in ('formal', 'warm')),
+  tone       text default 'warm' check (tone in ('formal', 'warm', 'tailored')),
   version    int default 1,
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
@@ -195,7 +196,7 @@ create table public.profile_clarifications (
 create table public.pipeline_logs (
   id         uuid primary key default gen_random_uuid(),
   run_date   date not null default current_date,
-  step       text check (step in ('fetch', 'score', 'email', 'scan_now')),
+  step       text check (step in ('fetch', 'score', 'email', 'scan_now', 'rescore')),
   user_id    uuid references public.profiles(id) on delete set null,
   status     text check (status in ('ok', 'error')),
   message    text,

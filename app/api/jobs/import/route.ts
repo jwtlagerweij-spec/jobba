@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { generateText } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
 import { assignCategory, detectRemote, detectLanguage } from '@/lib/categorize'
+import { buildPrefsContext, type ScoringPrefs } from '@/lib/pipeline'
 
 export async function POST(req: Request) {
   const supabase = await createClient()
@@ -15,18 +16,49 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Provide a URL or job description text.' }, { status: 400 })
   }
 
-  // Get user resume for scoring
-  const { data: profile } = await supabaseAdmin
-    .from('profiles')
-    .select('resume_text, resume_extracted_keywords')
-    .eq('id', user.id)
-    .single()
+  const [profileRes, prefsRes, coachRes] = await Promise.all([
+    supabaseAdmin
+      .from('profiles')
+      .select('resume_text, resume_extracted_keywords')
+      .eq('id', user.id)
+      .single(),
+    supabaseAdmin
+      .from('job_preferences')
+      .select('job_level, experience_level, job_titles, sector_preferences, career_direction, dutch_proficiency, work_arrangement, company_size, salary_min, salary_max, management_level, example_companies')
+      .eq('user_id', user.id)
+      .single(),
+    supabaseAdmin
+      .from('profile_clarifications')
+      .select('question, answer')
+      .eq('user_id', user.id)
+      .not('answer', 'is', null),
+  ])
 
+  const profile = profileRes.data
   if (!profile?.resume_text) {
     return NextResponse.json({ error: 'Upload your resume first.' }, { status: 400 })
   }
 
-  // Try to fetch page content via Jina AI reader (free, no key needed)
+  const prefs = prefsRes.data
+  const coachAnswers = (coachRes.data ?? []) as { question: string; answer: string }[]
+
+  const scoringPrefs: ScoringPrefs = {
+    job_titles: prefs?.job_titles ?? [],
+    sector_preferences: prefs?.sector_preferences ?? [],
+    career_direction: prefs?.career_direction ?? null,
+    dutch_proficiency: prefs?.dutch_proficiency ?? null,
+    work_arrangement: prefs?.work_arrangement ?? [],
+    company_size: prefs?.company_size ?? [],
+    salary_min: prefs?.salary_min ?? null,
+    salary_max: prefs?.salary_max ?? null,
+    management_level: prefs?.management_level ?? null,
+    example_companies: prefs?.example_companies ?? [],
+  }
+  const prefsContext = buildPrefsContext(scoringPrefs)
+  const coachContext = coachAnswers.length > 0
+    ? coachAnswers.map(c => `Q: ${c.question}\nA: ${c.answer}`).join('\n\n')
+    : ''
+
   let pageContent = manual_text ?? ''
   if (url && !manual_text) {
     try {
@@ -36,10 +68,10 @@ export async function POST(req: Request) {
       })
       if (jinaRes.ok) {
         pageContent = await jinaRes.text()
-        pageContent = pageContent.slice(0, 8000) // cap to avoid huge prompts
+        pageContent = pageContent.slice(0, 8000)
       }
     } catch {
-      // Jina failed — will rely on manual_text or return error
+      // Jina failed — fall through to manual error
     }
   }
 
@@ -50,7 +82,6 @@ export async function POST(req: Request) {
     }, { status: 422 })
   }
 
-  // Extract job details with Claude
   const extractPrompt = `Extract the job posting details from the text below and return ONLY valid JSON:
 {
   "title": "job title",
@@ -88,11 +119,20 @@ ${pageContent}`
     return NextResponse.json({ error: 'Could not find a job title. Try pasting the description manually.' }, { status: 422 })
   }
 
-  // Use URL as external_id to prevent duplicates
-  const externalId = url ?? `manual-${Date.now()}`
   const desc = extracted.description ?? ''
 
-  // Upsert job into shared jobs table
+  // For URL imports: use the URL as external_id to prevent duplicates.
+  // For text-only imports: hash the first 500 chars of the description for a stable id.
+  let externalId: string
+  if (url) {
+    externalId = url
+  } else {
+    const encoder = new TextEncoder()
+    const data = encoder.encode(desc.slice(0, 500))
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+    externalId = 'manual-' + Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16)
+  }
+
   const { data: savedJob, error: jobError } = await supabaseAdmin
     .from('jobs')
     .upsert({
@@ -117,7 +157,8 @@ ${pageContent}`
     return NextResponse.json({ error: 'Failed to save job.' }, { status: 500 })
   }
 
-  // Score the job against user resume
+  const experienceLevel = prefs?.job_level ?? prefs?.experience_level ?? 'graduate'
+
   const scoringPrompt = `Score this job for the candidate and return ONLY valid JSON:
 { "score": <integer 1-10>, "explanation": "<2 sentences: why it fits or doesn't fit this specific candidate>" }
 
@@ -125,6 +166,7 @@ Resume:
 ${profile.resume_text.slice(0, 3000)}
 
 ${profile.resume_extracted_keywords ? `Skills: ${profile.resume_extracted_keywords}` : ''}
+${prefsContext ? `\nCandidate stated preferences (use these to adjust scores — if a job conflicts with a stated preference, lower the score):\n${prefsContext}` : ''}${coachContext ? `\n\nAdditional context from coaching Q&A:\n${coachContext}` : ''}
 
 Job: ${extracted.title} at ${extracted.company ?? 'Unknown'}
 ${desc.slice(0, 1500)}`
@@ -144,6 +186,8 @@ ${desc.slice(0, 1500)}`
   } catch {
     // use defaults
   }
+
+  void experienceLevel
 
   const today = new Date().toISOString().split('T')[0]
   await supabaseAdmin

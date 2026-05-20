@@ -30,7 +30,7 @@ export async function GET() {
       .is('answer', null),
   ])
 
-  // Deduplicate matches by job_id (keep highest score)
+  // Deduplicate matches by job_id — keep most recent batch_date (matches rescored matches endpoint)
   type MatchRow = NonNullable<typeof matchesRes.data>[number]
   const bestByJob = new Map<string, MatchRow>()
   for (const m of matchesRes.data ?? []) {
@@ -38,7 +38,7 @@ export async function GET() {
     if (!job) continue
     const key = (job as { id: string }).id
     const existing = bestByJob.get(key)
-    if (!existing || m.fit_score > (existing.fit_score ?? 0)) bestByJob.set(key, m)
+    if (!existing || m.batch_date > existing.batch_date) bestByJob.set(key, m)
   }
   const allMatches = [...bestByJob.values()].sort((a, b) => b.fit_score - a.fit_score)
 
