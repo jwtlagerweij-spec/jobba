@@ -17,6 +17,14 @@ interface AppNavProps {
   backLabel?: string
 }
 
+const MAIN_NAV = [
+  { href: '/dashboard',    label: 'Home',         icon: LayoutDashboard },
+  { href: '/matches',      label: 'Matches',      icon: ListChecks },
+  { href: '/jobs',         label: 'Jobs',         icon: Search },
+  { href: '/applications', label: 'Applications', icon: Briefcase },
+  { href: '/coach',        label: 'Coach',        icon: MessageSquare },
+]
+
 export function AppNav({ right, backHref, backLabel }: AppNavProps) {
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
@@ -52,31 +60,65 @@ export function AppNav({ right, backHref, backLabel }: AppNavProps) {
     router.push('/login')
   }
 
+  const showDesktopNav = !backHref && !right
+
   return (
     <>
       {/* Top nav bar */}
-      <nav className="bg-background border-b px-4 py-3.5 flex items-center justify-between sticky top-0 z-20">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setOpen(true)}
-            aria-label="Open menu"
-            className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-          >
-            <Menu size={20} />
-          </button>
-          {backHref && (
-            <Link href={backHref} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              {resolvedBackLabel}
-            </Link>
-          )}
-        </div>
+      <nav className="bg-background border-b sticky top-0 z-20">
+        <div className="flex items-center h-14 px-4 gap-4 max-w-7xl mx-auto">
+          {/* Left: hamburger + back */}
+          <div className="flex items-center gap-3 w-40">
+            <button
+              onClick={() => setOpen(true)}
+              aria-label="Open menu"
+              className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground shrink-0"
+            >
+              <Menu size={20} />
+            </button>
+            {backHref && (
+              <Link
+                href={backHref}
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
+              >
+                {resolvedBackLabel}
+              </Link>
+            )}
+          </div>
 
-        <Link href="/dashboard" className="absolute left-1/2 -translate-x-1/2">
-          <Logo />
-        </Link>
+          {/* Center: Logo */}
+          <Link href="/dashboard" className="mx-auto">
+            <Logo />
+          </Link>
 
-        <div className="flex items-center gap-2 text-sm">
-          {right}
+          {/* Right: desktop nav links (only on main pages) or custom right slot */}
+          <div className="flex items-center justify-end gap-1 w-40">
+            {right && <div className="flex items-center gap-2 text-sm">{right}</div>}
+            {showDesktopNav && (
+              <div className="hidden md:flex items-center gap-0.5">
+                {MAIN_NAV.map(item => {
+                  const active =
+                    pathname === item.href || pathname.startsWith(item.href + '/')
+                  const Icon = item.icon
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      aria-label={item.label}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                        active
+                          ? 'bg-primary/10 text-primary'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                      }`}
+                    >
+                      <Icon size={15} />
+                      <span className="hidden lg:inline">{item.label}</span>
+                    </Link>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </nav>
 
@@ -94,7 +136,6 @@ export function AppNav({ right, backHref, backLabel }: AppNavProps) {
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        {/* Drawer header */}
         <div className="flex items-center justify-between px-5 py-4 border-b">
           <Logo />
           <button
@@ -106,7 +147,6 @@ export function AppNav({ right, backHref, backLabel }: AppNavProps) {
           </button>
         </div>
 
-        {/* Nav groups */}
         <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
           {NAV_GROUPS.map(group => (
             <div key={group.label}>
@@ -128,14 +168,24 @@ export function AppNav({ right, backHref, backLabel }: AppNavProps) {
                           : 'hover:bg-muted text-foreground'
                       }`}
                     >
-                      <Icon size={18} className={active ? 'text-primary-foreground' : 'text-muted-foreground group-hover:text-foreground'} />
+                      <Icon
+                        size={18}
+                        className={active ? 'text-primary-foreground' : 'text-muted-foreground group-hover:text-foreground'}
+                      />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium leading-none">{item.label}</p>
-                        <p className={`text-xs mt-0.5 truncate ${active ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                        <p
+                          className={`text-xs mt-0.5 truncate ${
+                            active ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                          }`}
+                        >
                           {item.sub}
                         </p>
                       </div>
-                      <ChevronRight size={14} className={`shrink-0 ${active ? 'text-primary-foreground/60' : 'text-muted-foreground/40'}`} />
+                      <ChevronRight
+                        size={14}
+                        className={`shrink-0 ${active ? 'text-primary-foreground/60' : 'text-muted-foreground/40'}`}
+                      />
                     </Link>
                   )
                 })}
@@ -144,15 +194,17 @@ export function AppNav({ right, backHref, backLabel }: AppNavProps) {
           ))}
         </div>
 
-        {/* Language toggle + Sign out */}
         <div className="border-t px-3 py-4 space-y-1">
-          {/* Language switcher */}
           <div className="flex items-center gap-2 px-3 py-2 mb-1">
-            <span className="text-xs text-muted-foreground mr-1">{lang === 'nl' ? 'Taal' : 'Language'}:</span>
+            <span className="text-xs text-muted-foreground mr-1">
+              {lang === 'nl' ? 'Taal' : 'Language'}:
+            </span>
             <button
               onClick={() => setLang('en')}
               className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-colors ${
-                lang === 'en' ? 'bg-foreground text-background border-foreground' : 'text-muted-foreground border-border hover:border-foreground/40'
+                lang === 'en'
+                  ? 'bg-foreground text-background border-foreground'
+                  : 'text-muted-foreground border-border hover:border-foreground/40'
               }`}
             >
               EN
@@ -160,13 +212,14 @@ export function AppNav({ right, backHref, backLabel }: AppNavProps) {
             <button
               onClick={() => setLang('nl')}
               className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-colors ${
-                lang === 'nl' ? 'bg-foreground text-background border-foreground' : 'text-muted-foreground border-border hover:border-foreground/40'
+                lang === 'nl'
+                  ? 'bg-foreground text-background border-foreground'
+                  : 'text-muted-foreground border-border hover:border-foreground/40'
               }`}
             >
               NL
             </button>
           </div>
-
           <button
             onClick={signOut}
             className="flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors group"
