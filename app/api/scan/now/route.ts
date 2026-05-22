@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { fetchAdzunaJobs, type FetchedJob } from '@/lib/fetchers/adzuna'
 import { scoreJobsForUser, type ScoringPrefs } from '@/lib/pipeline'
 
 export const maxDuration = 60
@@ -14,12 +13,12 @@ export async function POST() {
   const [profileRes, prefsRes, coachRes] = await Promise.all([
     supabaseAdmin
       .from('profiles')
-      .select('resume_text, ai_generated_titles, resume_extracted_keywords')
+      .select('resume_text, resume_extracted_keywords')
       .eq('id', user.id)
       .single(),
     supabaseAdmin
       .from('job_preferences')
-      .select('job_titles, location, job_type, job_types, experience_level, job_level, years_in_field, sector_preferences, career_direction, dutch_proficiency, work_arrangement, company_size, salary_min, salary_max, management_level, example_companies')
+      .select('job_titles, job_type, job_types, experience_level, job_level, sector_preferences, career_direction, dutch_proficiency, work_arrangement, company_size, salary_min, salary_max, management_level, example_companies')
       .eq('user_id', user.id)
       .single(),
     supabaseAdmin
@@ -36,18 +35,8 @@ export async function POST() {
     return NextResponse.json({ error: 'No resume found. Please upload your resume first.' }, { status: 400 })
   }
 
+  const today = new Date().toISOString().split('T')[0]
   const coachAnswers = (coachRes.data ?? []) as { question: string; answer: string }[]
-
-  const aiTitles: string[] = profile.ai_generated_titles ?? []
-  const prefTitles: string[] = prefs?.job_titles ?? []
-  const allTerms = [...new Set([...aiTitles, ...prefTitles])].slice(0, 3)
-
-  if (allTerms.length === 0) {
-    return NextResponse.json({ matches_found: 0 })
-  }
-
-  const location = prefs?.location ?? undefined
-  const jobType = (prefs?.job_types?.[0] ?? prefs?.job_type) ?? 'job'
   const experienceLevel = prefs?.job_level ?? prefs?.experience_level ?? 'graduate'
 
   const scoringPrefs: ScoringPrefs = {
@@ -63,80 +52,39 @@ export async function POST() {
     example_companies: prefs?.example_companies ?? [],
   }
 
-  const allJobs: FetchedJob[] = []
-  for (const term of allTerms) {
-    const jobs = await fetchAdzunaJobs(term, location, jobType).catch(() => [] as FetchedJob[])
-    allJobs.push(...jobs)
-  }
-
-  if (allJobs.length === 0) {
-    await supabaseAdmin.from('profiles').update({ onboarding_done: true }).eq('id', user.id)
-    return NextResponse.json({ matches_found: 0 })
-  }
-
-  const seen = new Set<string>()
-  const uniqueJobs = allJobs.filter(j => {
-    const key = `${j.external_id}:${j.source}`
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
-
-  const { data: savedJobs } = await supabaseAdmin
-    .from('jobs')
-    .upsert(
-      uniqueJobs.map(j => ({
-        external_id: j.external_id,
-        source: j.source,
-        title: j.title,
-        company: j.company,
-        location: j.location,
-        description: j.description,
-        url: j.url,
-        salary_min: j.salary_min,
-        salary_max: j.salary_max,
-        posted_at: j.posted_at,
-        category: j.category,
-        is_remote: j.is_remote,
-        language: j.language,
-      })),
-      { onConflict: 'external_id,source', ignoreDuplicates: false }
-    )
-    .select('id, title, company, description')
-
+  // Pull from the shared jobs pool — no Adzuna call, no external dependency.
+  // The 5am crawl cron keeps this pool fresh and diverse.
   const cutoff = new Date()
   cutoff.setDate(cutoff.getDate() - 45)
-  const { data: allRecentJobs } = await supabaseAdmin
-    .from('jobs')
-    .select('id, title, company, description')
-    .gte('posted_at', cutoff.toISOString())
-    .limit(300)
 
-  const freshIds = new Set((savedJobs ?? []).map(j => j.id))
-  const extraJobs = (allRecentJobs ?? []).filter(j => !freshIds.has(j.id))
-  const allJobsPool = [...(savedJobs ?? []), ...extraJobs]
+  const [jobsRes, todaysMatchesRes] = await Promise.all([
+    supabaseAdmin
+      .from('jobs')
+      .select('id, title, company, description')
+      .gte('posted_at', cutoff.toISOString())
+      .order('posted_at', { ascending: false })
+      .limit(200),
+    supabaseAdmin
+      .from('job_matches')
+      .select('job_id')
+      .eq('user_id', user.id)
+      .eq('batch_date', today),
+  ])
 
-  if (allJobsPool.length === 0) {
+  const allJobs = jobsRes.data ?? []
+  const alreadyScoredToday = new Set((todaysMatchesRes.data ?? []).map(m => m.job_id))
+  const jobsToScore = allJobs.filter(j => !alreadyScoredToday.has(j.id)).slice(0, 40)
+
+  if (jobsToScore.length === 0) {
     await supabaseAdmin.from('profiles').update({ onboarding_done: true }).eq('id', user.id)
     return NextResponse.json({ matches_found: 0 })
   }
-
-  const today = new Date().toISOString().split('T')[0]
-
-  const { data: todaysMatches } = await supabaseAdmin
-    .from('job_matches')
-    .select('job_id')
-    .eq('user_id', user.id)
-    .eq('batch_date', today)
-
-  const alreadyScoredToday = new Set((todaysMatches ?? []).map(m => m.job_id))
-  const jobsForScoring = allJobsPool.filter(j => !alreadyScoredToday.has(j.id)).slice(0, 24)
 
   const matches = await scoreJobsForUser(
     user.id,
     profile.resume_text,
     profile.resume_extracted_keywords ?? '',
-    jobsForScoring,
+    jobsToScore,
     today,
     experienceLevel,
     scoringPrefs,
@@ -153,7 +101,7 @@ export async function POST() {
     step: 'scan_now',
     user_id: user.id,
     status: 'ok',
-    message: `Found ${matches.length} matches`,
+    message: `Scored ${jobsToScore.length} jobs, found ${matches.length} matches`,
   })
 
   return NextResponse.json({ matches_found: matches.length })
