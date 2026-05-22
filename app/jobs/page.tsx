@@ -53,9 +53,14 @@ function ScoreBadge({ score }: { score: number }) {
   )
 }
 
-function daysAgo(dateStr: string | null, lang: 'en' | 'nl'): string {
+function daysOld(dateStr: string | null): number {
+  if (!dateStr) return 0
+  return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000)
+}
+
+function daysAgoLabel(dateStr: string | null, lang: 'en' | 'nl'): string {
   if (!dateStr) return ''
-  const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000)
+  const days = daysOld(dateStr)
   if (days === 0) return lang === 'nl' ? 'Vandaag' : 'Today'
   if (days === 1) return lang === 'nl' ? 'Gisteren' : 'Yesterday'
   return lang === 'nl' ? `${days}d geleden` : `${days}d ago`
@@ -511,9 +516,15 @@ function JobBoardInner() {
                               {SOURCE_LABELS[job.source] ?? job.source}
                             </span>
                             {job.posted_at && (
-                              <span className="text-xs text-muted-foreground ml-auto">
-                                {daysAgo(job.posted_at, lang)}
-                              </span>
+                              daysOld(job.posted_at) > 21 ? (
+                                <span className="text-xs ml-auto font-medium text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                                  ⚠ {daysAgoLabel(job.posted_at, lang)} — may be filled
+                                </span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground ml-auto">
+                                  {daysAgoLabel(job.posted_at, lang)}
+                                </span>
+                              )
                             )}
                           </div>
                         </div>

@@ -169,6 +169,20 @@ function JobDetailInner() {
         )}
       </div>
 
+      {/* Staleness warning */}
+      {job.posted_at && (() => {
+        const days = Math.floor((Date.now() - new Date(job.posted_at).getTime()) / 86400000)
+        return days > 21 ? (
+          <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 flex items-center gap-2.5 text-sm text-amber-800">
+            <span className="shrink-0">⚠</span>
+            <span>
+              This vacancy was posted <strong>{days} days ago</strong> and may already be filled.
+              {' '}<a href={job.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:opacity-75">Check the original listing</a> before applying.
+            </span>
+          </div>
+        ) : null
+      })()}
+
       {/* Fit explanation */}
       {match?.fit_explanation && (
         <div className="rounded-xl border bg-muted/40 p-4">
