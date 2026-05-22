@@ -67,10 +67,10 @@ function MatchCard({
   return (
     <div
       onClick={() => onNavigate(match.id, job.id)}
-      className="group flex items-center gap-4 rounded-xl border bg-card hover:border-primary/25 hover:shadow-sm transition-all duration-150 cursor-pointer relative overflow-hidden p-4"
+      className="group flex items-center gap-4 rounded-xl border bg-card hover:border-indigo-200 hover:shadow-md transition-all duration-150 cursor-pointer relative overflow-hidden p-4"
     >
       {!match.user_viewed && (
-        <div className="absolute top-0 left-0 right-0 h-0.5 bg-primary" />
+        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-500 to-violet-500" />
       )}
       <CompanyLogo company={job.company ?? 'Company'} size={42} />
       <div className="flex-1 min-w-0">
@@ -141,23 +141,29 @@ export default function DashboardPage() {
       value: loading ? '—' : String(overview?.total_matches ?? 0),
       label: 'Matches scored',
       href: '/matches',
+      color: 'bg-indigo-50 border-indigo-100',
+      valueColor: 'text-indigo-600',
     },
     {
       value: loading ? '—' : String(overview?.new_matches ?? 0),
       label: 'New today',
       href: '/matches',
-      highlight: (overview?.new_matches ?? 0) > 0,
+      color: 'bg-violet-50 border-violet-100',
+      valueColor: (overview?.new_matches ?? 0) > 0 ? 'text-violet-600' : 'text-muted-foreground',
     },
     {
       value: loading ? '—' : String(overview?.total_applications ?? 0),
       label: 'Applications',
       href: '/applications',
+      color: 'bg-cyan-50 border-cyan-100',
+      valueColor: 'text-cyan-600',
     },
     {
       value: loading ? '—' : String(appCounts['interviewing'] ?? 0),
       label: 'Interviewing',
       href: '/applications',
-      highlight: (appCounts['interviewing'] ?? 0) > 0,
+      color: 'bg-amber-50 border-amber-100',
+      valueColor: (appCounts['interviewing'] ?? 0) > 0 ? 'text-amber-600' : 'text-muted-foreground',
     },
   ]
 
@@ -166,25 +172,17 @@ export default function DashboardPage() {
       <AppNav />
 
       {/* Stats strip */}
-      <div className="border-b bg-muted/30">
-        <div className="max-w-4xl mx-auto px-4">
-          <div className="grid grid-cols-4 divide-x">
+      <div className="border-b bg-background">
+        <div className="max-w-4xl mx-auto px-4 py-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {stats.map(s => (
               <Link
                 key={s.label}
                 href={s.href}
-                className="py-4 px-4 text-center hover:bg-muted/40 transition-colors group"
+                className={`rounded-xl border px-4 py-4 text-center hover:shadow-sm transition-all duration-150 ${s.color}`}
               >
-                <p
-                  className={`text-2xl font-bold tabular-nums ${
-                    s.highlight ? 'text-primary' : 'text-foreground'
-                  }`}
-                >
-                  {s.value}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5 group-hover:text-foreground transition-colors">
-                  {s.label}
-                </p>
+                <p className={`text-2xl font-bold tabular-nums ${s.valueColor}`}>{s.value}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{s.label}</p>
               </Link>
             ))}
           </div>
