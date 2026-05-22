@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase'
 import { CompanyLogo } from '@/components/ui/company-logo'
 import { AppNav } from '@/components/ui/app-nav'
 import { useLanguage, t } from '@/lib/language-context'
@@ -35,12 +34,13 @@ interface Overview {
   application_counts: Record<string, number>
   total_applications: number
   coach_pending: number
+  full_name: string | null
 }
 
-const STATUS_COLOR: Record<string, string> = {
+const STATUS_BADGE: Record<string, string> = {
   saved: 'text-slate-600 bg-slate-50 border-slate-200',
   applied: 'text-blue-600 bg-blue-50 border-blue-200',
-  interviewing: 'text-purple-600 bg-purple-50 border-purple-200',
+  interviewing: 'text-violet-600 bg-violet-50 border-violet-200',
   offered: 'text-green-600 bg-green-50 border-green-200',
   rejected: 'text-red-500 bg-red-50 border-red-200',
 }
@@ -52,14 +52,22 @@ function ScoreDot({ score }: { score: number }) {
   return <span className={`inline-block w-2 h-2 rounded-full ${cls} shrink-0`} />
 }
 
-function MatchMiniCard({ match, onNavigate }: { match: TopMatch; onNavigate: (matchId: string, jobId: string) => void }) {
+function MatchMiniCard({
+  match,
+  onNavigate,
+}: {
+  match: TopMatch
+  onNavigate: (matchId: string, jobId: string) => void
+}) {
   const job = match.job
   if (!job) return null
-  const scoreColor = match.fit_score >= 8
-    ? 'bg-green-50 text-green-700 border-green-200'
-    : match.fit_score >= 6
-    ? 'bg-amber-50 text-amber-700 border-amber-200'
-    : 'bg-slate-50 text-slate-500 border-slate-200'
+
+  const scoreColor =
+    match.fit_score >= 8
+      ? 'bg-green-100 text-green-700 border-green-200'
+      : match.fit_score >= 6
+      ? 'bg-amber-100 text-amber-700 border-amber-200'
+      : 'bg-slate-100 text-slate-500 border-slate-200'
 
   return (
     <div
@@ -67,7 +75,7 @@ function MatchMiniCard({ match, onNavigate }: { match: TopMatch; onNavigate: (ma
       className="group rounded-xl border bg-card hover:border-primary/30 hover:shadow-sm transition-all cursor-pointer relative overflow-hidden"
     >
       {!match.user_viewed && (
-        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-primary to-primary/40" />
+        <div className="absolute top-0 left-0 right-0 h-0.5 bg-primary" />
       )}
       <div className="p-4 flex items-center gap-3">
         <CompanyLogo company={job.company ?? 'Company'} size={40} />
@@ -90,19 +98,26 @@ function MatchMiniCard({ match, onNavigate }: { match: TopMatch; onNavigate: (ma
   )
 }
 
+function MatchCardSkeleton() {
+  return (
+    <div className="rounded-xl border bg-card p-4 animate-pulse flex items-center gap-3">
+      <div className="w-10 h-10 rounded-xl bg-muted shrink-0" />
+      <div className="flex-1 space-y-2">
+        <div className="h-3.5 bg-muted rounded w-2/3" />
+        <div className="h-3 bg-muted rounded w-1/3" />
+      </div>
+      <div className="w-10 h-5 bg-muted rounded-full" />
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const { tr } = useLanguage()
   const [overview, setOverview] = useState<Overview | null>(null)
-  const [userName, setUserName] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const supabase = createClient()
-    supabase.from('profiles').select('full_name').single().then(({ data }) => {
-      if (data?.full_name) setUserName(data.full_name.split(' ')[0])
-    })
-
     fetch('/api/dashboard/overview')
       .then(r => r.json())
       .then(setOverview)
@@ -114,15 +129,29 @@ export default function DashboardPage() {
     router.push(`/jobs/${jobId}`)
   }
 
-  const today = new Date().toLocaleDateString('en-NL', { weekday: 'long', day: 'numeric', month: 'long' })
+  const today = new Date().toLocaleDateString('en-NL', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  })
   const hour = new Date().getHours()
-  const greeting = hour < 12 ? tr(t.dashboard.goodMorning) : hour < 17 ? tr(t.dashboard.goodAfternoon) : tr(t.dashboard.goodEvening)
+  const greeting =
+    hour < 12
+      ? tr(t.dashboard.goodMorning)
+      : hour < 17
+      ? tr(t.dashboard.goodAfternoon)
+      : tr(t.dashboard.goodEvening)
+
+  const firstName = overview?.full_name?.split(' ')[0] ?? null
 
   const appCounts = overview?.application_counts ?? {}
   const activeStatuses = STATUS_ORDER.filter(s => (appCounts[s] ?? 0) > 0)
 
   const lastScoredLabel = overview?.last_scored
-    ? new Date(overview.last_scored).toLocaleDateString('en-NL', { day: 'numeric', month: 'short' })
+    ? new Date(overview.last_scored).toLocaleDateString('en-NL', {
+        day: 'numeric',
+        month: 'short',
+      })
     : null
 
   return (
@@ -130,23 +159,32 @@ export default function DashboardPage() {
       <AppNav />
 
       <main className="max-w-4xl mx-auto px-4 py-8 space-y-6">
-
         {/* Greeting */}
         <div>
           <h1 className="text-2xl font-bold">
-            {greeting}{userName ? `, ${userName}` : ''} 👋
+            {greeting}
+            {firstName ? `, ${firstName}` : ''} 👋
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             {today}
             {overview && overview.total_matches > 0 && (
               <>
                 {' · '}
-                <span className="font-medium text-foreground">{overview.total_matches}</span> {tr(t.dashboard.matches)}
+                <span className="font-medium text-foreground">{overview.total_matches}</span>{' '}
+                {tr(t.dashboard.matches)}
                 {overview.new_matches > 0 && (
-                  <> · <span className="text-primary font-medium">{overview.new_matches} {tr(t.dashboard.new)}</span></>
+                  <>
+                    {' · '}
+                    <span className="text-primary font-medium">
+                      {overview.new_matches} {tr(t.dashboard.new)}
+                    </span>
+                  </>
                 )}
                 {lastScoredLabel && (
-                  <> · {tr(t.dashboard.lastScored)} {lastScoredLabel}</>
+                  <>
+                    {' · '}
+                    {tr(t.dashboard.lastScored)} {lastScoredLabel}
+                  </>
                 )}
               </>
             )}
@@ -171,14 +209,7 @@ export default function DashboardPage() {
           {loading && (
             <div className="space-y-2">
               {[1, 2, 3].map(i => (
-                <div key={i} className="rounded-xl border bg-card p-4 animate-pulse flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-muted shrink-0" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-3.5 bg-muted rounded w-2/3" />
-                    <div className="h-3 bg-muted rounded w-1/3" />
-                  </div>
-                  <div className="w-10 h-5 bg-muted rounded-full" />
-                </div>
+                <MatchCardSkeleton key={i} />
               ))}
             </div>
           )}
@@ -208,21 +239,25 @@ export default function DashboardPage() {
           )}
         </section>
 
-        {/* Applications + Coach row */}
+        {/* Applications + Coach */}
         <div className="grid sm:grid-cols-2 gap-4">
-
           {/* Applications */}
           <section className="rounded-xl border bg-card p-5 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold">{tr(t.dashboard.applications)}</h2>
-              <Link href="/applications" className="text-xs text-primary hover:opacity-75 font-medium transition-opacity">
+              <Link
+                href="/applications"
+                className="text-xs text-primary hover:opacity-75 font-medium transition-opacity"
+              >
                 {tr(t.dashboard.openTracker)}
               </Link>
             </div>
 
             {loading && (
               <div className="space-y-2">
-                {[1, 2, 3].map(i => <div key={i} className="h-7 bg-muted rounded-lg animate-pulse" />)}
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="h-7 bg-muted rounded-lg animate-pulse" />
+                ))}
               </div>
             )}
 
@@ -230,9 +265,13 @@ export default function DashboardPage() {
               <div className="py-4 text-center">
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   No applications tracked yet.
-                  <br />Save a match to start tracking.
+                  <br />
+                  Save a match to start tracking.
                 </p>
-                <Link href="/matches" className="mt-3 inline-block text-xs text-primary font-medium hover:opacity-75">
+                <Link
+                  href="/matches"
+                  className="mt-3 inline-block text-xs text-primary font-medium hover:opacity-75"
+                >
                   Go to your matches →
                 </Link>
               </div>
@@ -243,7 +282,9 @@ export default function DashboardPage() {
                 {activeStatuses.length > 0 ? (
                   activeStatuses.map(status => (
                     <div key={status} className="flex items-center justify-between">
-                      <span className={`text-xs font-medium border rounded-full px-2.5 py-1 ${STATUS_COLOR[status]}`}>
+                      <span
+                        className={`text-xs font-medium border rounded-full px-2.5 py-1 ${STATUS_BADGE[status]}`}
+                      >
                         {status.charAt(0).toUpperCase() + status.slice(1)}
                       </span>
                       <span className="text-sm font-bold">{appCounts[status]}</span>
@@ -260,7 +301,10 @@ export default function DashboardPage() {
           <section className="rounded-xl border bg-card p-5 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold">{tr(t.dashboard.aiCoach)}</h2>
-              <Link href="/coach" className="text-xs text-primary hover:opacity-75 font-medium transition-opacity">
+              <Link
+                href="/coach"
+                className="text-xs text-primary hover:opacity-75 font-medium transition-opacity"
+              >
                 {tr(t.dashboard.goToCoach)}
               </Link>
             </div>
@@ -276,9 +320,7 @@ export default function DashboardPage() {
               <div className="flex flex-col items-center justify-center py-4 text-center gap-2">
                 <span className="text-2xl">✓</span>
                 <p className="text-sm font-medium">{tr(t.dashboard.allCaughtUp)}</p>
-                <p className="text-xs text-muted-foreground">
-                  {tr(t.dashboard.coachSub)}
-                </p>
+                <p className="text-xs text-muted-foreground">{tr(t.dashboard.coachSub)}</p>
               </div>
             )}
 
@@ -290,9 +332,14 @@ export default function DashboardPage() {
                   </span>
                   <div>
                     <p className="text-sm font-medium">
-                      {overview!.coach_pending === 1 ? '1 question' : `${overview!.coach_pending} questions`} waiting
+                      {overview!.coach_pending === 1
+                        ? '1 question'
+                        : `${overview!.coach_pending} questions`}{' '}
+                      waiting
                     </p>
-                    <p className="text-xs text-muted-foreground">Answering improves your match scores</p>
+                    <p className="text-xs text-muted-foreground">
+                      Answering improves your match scores
+                    </p>
                   </div>
                 </div>
                 <Link
@@ -318,10 +365,11 @@ export default function DashboardPage() {
                 Search and filter all Dutch vacancies — sorted by your fit score
               </p>
             </div>
-            <span className="text-muted-foreground group-hover:text-primary transition-colors text-lg">→</span>
+            <span className="text-muted-foreground group-hover:text-primary transition-colors text-lg">
+              →
+            </span>
           </Link>
         </section>
-
       </main>
     </div>
   )

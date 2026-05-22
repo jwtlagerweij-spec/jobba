@@ -9,7 +9,7 @@ export async function GET() {
 
   const uid = user.id
 
-  const [matchesRes, appsRes, coachRes] = await Promise.all([
+  const [matchesRes, appsRes, coachRes, profileRes] = await Promise.all([
     supabaseAdmin
       .from('job_matches')
       .select('id, fit_score, fit_explanation, user_viewed, batch_date, jobs(id, title, company, location, is_remote, source, url, salary_min, salary_max)')
@@ -28,6 +28,12 @@ export async function GET() {
       .eq('user_id', uid)
       .eq('dismissed', false)
       .is('answer', null),
+
+    supabaseAdmin
+      .from('profiles')
+      .select('full_name')
+      .eq('id', uid)
+      .maybeSingle(),
   ])
 
   // Deduplicate matches by job_id — keep most recent batch_date (matches rescored matches endpoint)
@@ -71,5 +77,6 @@ export async function GET() {
     application_counts: statusCounts,
     total_applications: apps.length,
     coach_pending: (coachRes.data ?? []).length,
+    full_name: profileRes.data?.full_name ?? null,
   })
 }

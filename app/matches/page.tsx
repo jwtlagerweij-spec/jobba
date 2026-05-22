@@ -319,7 +319,7 @@ export default function MatchesPage() {
   function markViewed(matchId: string, jobId: string) {
     setMatches(prev => prev.map(m => m.id === matchId ? { ...m, user_viewed: true } : m))
     fetch(`/api/matches/${matchId}/viewed`, { method: 'PATCH' }).catch(() => {})
-    router.push(`/jobs/${jobId}`)
+    router.push(`/jobs/${jobId}?back=${encodeURIComponent('/matches')}`)
   }
 
   function updateStatus(jobId: string, status: string) {
