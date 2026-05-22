@@ -44,7 +44,7 @@ export async function GET(req: Request) {
   for (let i = 0; i < GLOBAL_TERMS.length; i += BATCH_SIZE) {
     const batch = GLOBAL_TERMS.slice(i, i + BATCH_SIZE)
     const results = await Promise.allSettled(
-      batch.map(term => fetchAdzunaJobs(term, undefined, 'job'))
+      batch.map(term => fetchAdzunaJobs(term, undefined, 'job', 2))
     )
 
     const jobs = results.flatMap(r => r.status === 'fulfilled' ? r.value : [])

@@ -37,7 +37,7 @@ function buildSearchTerm(term: string, jobType: string): string {
   return term
 }
 
-async function fetchAdzunaPage(searchTerm: string, location: string | undefined, jobType: string, page: number): Promise<FetchedJob[]> {
+async function fetchAdzunaPage(searchTerm: string, location: string | undefined, jobType: string, page: number, maxDaysOld?: number): Promise<FetchedJob[]> {
   const params: Record<string, string> = {
     app_id: APP_ID,
     app_key: APP_KEY,
@@ -47,6 +47,10 @@ async function fetchAdzunaPage(searchTerm: string, location: string | undefined,
 
   if (location && location.toLowerCase() !== 'netherlands' && location.toLowerCase() !== 'nederland') {
     params.where = location
+  }
+
+  if (maxDaysOld) {
+    params.max_days_old = String(maxDaysOld)
   }
 
   const url = `https://api.adzuna.com/v1/api/jobs/nl/search/${page}?${new URLSearchParams(params)}`
@@ -76,15 +80,14 @@ async function fetchAdzunaPage(searchTerm: string, location: string | undefined,
   }))
 }
 
-export async function fetchAdzunaJobs(searchTerm: string, location?: string, jobType = 'job'): Promise<FetchedJob[]> {
+export async function fetchAdzunaJobs(searchTerm: string, location?: string, jobType = 'job', maxDaysOld?: number): Promise<FetchedJob[]> {
   if (!APP_ID || !APP_KEY) {
-    console.warn('Adzuna API credentials not configured')
     return []
   }
 
   const [page1, page2] = await Promise.all([
-    fetchAdzunaPage(searchTerm, location, jobType, 1),
-    fetchAdzunaPage(searchTerm, location, jobType, 2).catch(() => [] as FetchedJob[]),
+    fetchAdzunaPage(searchTerm, location, jobType, 1, maxDaysOld),
+    fetchAdzunaPage(searchTerm, location, jobType, 2, maxDaysOld).catch(() => [] as FetchedJob[]),
   ])
 
   return [...page1, ...page2]
