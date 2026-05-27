@@ -37,7 +37,7 @@ export async function GET(req: Request) {
       if (type === 'remote') q = q.eq('is_remote', true)
       if (search) {
         for (const term of search.trim().split(/\s+/).filter(Boolean)) {
-          q = q.ilike('title', `%${term}%`)
+          q = q.or(`title.ilike.%${term}%,description.ilike.%${term}%`)
         }
       }
 
@@ -68,7 +68,7 @@ export async function GET(req: Request) {
   if (type === 'remote') q = q.eq('is_remote', true)
   if (search) {
     for (const term of search.trim().split(/\s+/).filter(Boolean)) {
-      q = q.ilike('title', `%${term}%`)
+      q = q.or(`title.ilike.%${term}%,description.ilike.%${term}%`)
     }
   }
 

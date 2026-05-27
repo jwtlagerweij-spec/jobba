@@ -7,6 +7,7 @@ import { Search, X, Check, SlidersHorizontal } from 'lucide-react'
 import { CompanyLogo } from '@/components/ui/company-logo'
 import { AppNav } from '@/components/ui/app-nav'
 import { useLanguage, t } from '@/lib/language-context'
+import { SECTOR_FILTER_OPTIONS } from '@/lib/sources/categories'
 
 interface PublicJob {
   id: string
@@ -22,20 +23,15 @@ interface PublicJob {
   fit_score: number | null
 }
 
-const SECTORS = [
-  { id: 'all', label: 'All sectors' },
-  { id: 'consulting', label: 'Consulting' },
-  { id: 'data', label: 'Data & Analytics' },
-  { id: 'ai-tech', label: 'AI & Tech' },
-  { id: 'strategy', label: 'Strategy & Product' },
-  { id: 'other', label: 'Other' },
-]
-
 const SOURCE_LABELS: Record<string, string> = {
   adzuna: 'Adzuna',
   nvb: 'NVB',
   intermediair: 'Intermediair',
   jobbird: 'Jobbird',
+  themuse: 'The Muse',
+  arbeitnow: 'Arbeitnow',
+  jooble: 'Jooble',
+  reed: 'Reed',
   manual: 'Manual',
 }
 
@@ -87,12 +83,16 @@ function FilterSidebar({
   sort,
   isLoggedIn,
   updateParams,
+  sectorCounts,
+  lang,
 }: {
   sector: string
   remote: boolean
   sort: string
   isLoggedIn: boolean
   updateParams: (updates: Record<string, string | null>, resetPage?: boolean) => void
+  sectorCounts: Record<string, number>
+  lang: 'en' | 'nl'
 }) {
   return (
     <div className="space-y-7">
@@ -101,8 +101,10 @@ function FilterSidebar({
           Sector
         </p>
         <div className="space-y-0.5">
-          {SECTORS.map(s => {
+          {SECTOR_FILTER_OPTIONS.map(s => {
             const active = sector === s.id || (s.id === 'all' && sector === 'all')
+            const count = s.id === 'all' ? undefined : sectorCounts[s.id]
+            const label = lang === 'nl' ? s.labelNl : s.label
             return (
               <button
                 key={s.id}
@@ -113,8 +115,13 @@ function FilterSidebar({
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                 }`}
               >
-                {s.label}
-                {active && s.id !== 'all' && <Check size={13} className="shrink-0" />}
+                <span className="truncate">{label}</span>
+                <span className="flex items-center gap-1.5 shrink-0 ml-1">
+                  {count !== undefined && count > 0 && (
+                    <span className="text-xs tabular-nums text-muted-foreground/60">{count}</span>
+                  )}
+                  {active && s.id !== 'all' && <Check size={13} />}
+                </span>
               </button>
             )
           })}
@@ -190,6 +197,7 @@ function JobBoardInner() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const [localSearch, setLocalSearch] = useState(q)
+  const [sectorCounts, setSectorCounts] = useState<Record<string, number>>({})
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const authChecked = useRef(false)
 
@@ -215,6 +223,10 @@ function JobBoardInner() {
         router.replace(`${pathname}?${next.toString()}`, { scroll: false })
       }
     })
+    fetch('/api/jobs/counts')
+      .then(r => r.ok ? r.json() : {})
+      .then(data => setSectorCounts(data ?? {}))
+      .catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -245,7 +257,8 @@ function JobBoardInner() {
 
   const activeFilters: { key: string; label: string }[] = []
   if (sector !== 'all') {
-    const label = SECTORS.find(s => s.id === sector)?.label ?? sector
+    const s = SECTOR_FILTER_OPTIONS.find(s => s.id === sector)
+    const label = s ? (lang === 'nl' ? s.labelNl : s.label) : sector
     activeFilters.push({ key: 'sector', label })
   }
   if (remote) activeFilters.push({ key: 'remote', label: 'Remote only' })
@@ -289,6 +302,8 @@ function JobBoardInner() {
                 sort={sort}
                 isLoggedIn={isLoggedIn}
                 updateParams={updateParams}
+                sectorCounts={sectorCounts}
+                lang={lang}
               />
             </div>
           </aside>
@@ -389,6 +404,8 @@ function JobBoardInner() {
                     updateParams(updates, resetPage)
                     setMobileFiltersOpen(false)
                   }}
+                  sectorCounts={sectorCounts}
+                  lang={lang}
                 />
               </div>
             )}
@@ -513,8 +530,13 @@ function JobBoardInner() {
                               </span>
                             )}
                             <span className="text-xs border rounded-full px-2 py-0.5 text-muted-foreground bg-muted/30">
-                              {SOURCE_LABELS[job.source] ?? job.source}
+                              via {SOURCE_LABELS[job.source] ?? job.source}
                             </span>
+                            {job.posted_at && daysOld(job.posted_at) <= 2 && (
+                              <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
+                                New
+                              </span>
+                            )}
                             {job.posted_at && (
                               daysOld(job.posted_at) > 21 ? (
                                 <span className="text-xs ml-auto font-medium text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">

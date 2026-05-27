@@ -38,6 +38,8 @@ Suggested answers should reflect executive maturity — strategic, direct, and o
   return `You are a career coach preparing a candidate for a job interview.`
 }
 
+export const maxDuration = 60
+
 export async function POST(req: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

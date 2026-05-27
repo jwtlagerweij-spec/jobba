@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { generateText } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
-import { fetchAdzunaJobs, type FetchedJob } from '@/lib/fetchers/adzuna'
+import { aggregateByTerm, type FetchedJob } from '@/lib/sources/aggregator'
 
 export interface ScoredMatch {
   job_id: string
@@ -22,12 +22,11 @@ export interface ScoringPrefs {
   example_companies?: string[]
 }
 
-export async function fetchAndUpsertJobs(terms: string[], location?: string, jobType = 'job'): Promise<{ id: string; title: string; company: string | null; description: string | null }[]> {
-  const allJobs: FetchedJob[] = []
-  for (const term of terms) {
-    const jobs = await fetchAdzunaJobs(term, location, jobType).catch(() => [] as FetchedJob[])
-    allJobs.push(...jobs)
-  }
+export async function fetchAndUpsertJobs(terms: string[], location?: string): Promise<{ id: string; title: string; company: string | null; description: string | null }[]> {
+  const results = await Promise.allSettled(
+    terms.map(term => aggregateByTerm(term, location))
+  )
+  const allJobs: FetchedJob[] = results.flatMap(r => r.status === 'fulfilled' ? r.value : [])
 
   if (allJobs.length === 0) return []
 

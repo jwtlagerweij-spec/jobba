@@ -55,16 +55,21 @@ export default function ResumePage() {
       return
     }
 
-    const reader = res.body!.getReader()
-    const decoder = new TextDecoder()
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      setTailoredContent(prev => prev + decoder.decode(value, { stream: true }))
+    try {
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        setTailoredContent(prev => prev + decoder.decode(value, { stream: true }))
+      }
+      setCredits(c => Math.max(0, c - 1))
+    } catch (streamErr) {
+      console.error('Stream read error:', streamErr)
+      toast.error('Generation interrupted. Please try again.')
+    } finally {
+      setIsGenerating(false)
     }
-
-    setCredits(c => Math.max(0, c - 1))
-    setIsGenerating(false)
   }
 
   async function handleCopy() {
