@@ -64,10 +64,6 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Job fetch failed' }, { status: 500 })
   }
 
-  if (sharedJobs.length === 0) {
-    return NextResponse.json({ ok: true, message: 'No new jobs fetched' })
-  }
-
   // 4. Score + email per user
   let emailsSent = 0
   for (const user of users) {
