@@ -91,7 +91,7 @@ create table public.job_preferences (
 create table public.jobs (
   id           uuid primary key default gen_random_uuid(),
   external_id  text not null,
-  source       text not null check (source in ('adzuna', 'nvb', 'intermediair', 'manual', 'jobbird')),
+  source       text not null check (source in ('adzuna', 'nvb', 'intermediair', 'manual', 'jobbird', 'arbeitnow', 'themuse', 'jooble', 'reed')),
   title        text not null,
   company      text,
   location     text,
@@ -196,11 +196,19 @@ create table public.profile_clarifications (
 create table public.pipeline_logs (
   id         uuid primary key default gen_random_uuid(),
   run_date   date not null default current_date,
-  step       text check (step in ('fetch', 'score', 'email', 'scan_now', 'rescore')),
+  step       text check (step in ('fetch', 'score', 'email', 'scan_now', 'rescore', 'global_crawl')),
   user_id    uuid references public.profiles(id) on delete set null,
   status     text check (status in ('ok', 'error')),
   message    text,
   created_at timestamptz default now()
+);
+
+-- ── job_cache ─────────────────────────────────────────────
+create table public.job_cache (
+  cache_key  text        primary key,
+  results    jsonb       not null,
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now()
 );
 
 -- ============================================================
@@ -218,6 +226,7 @@ alter table public.profile_clarifications enable row level security;
 alter table public.pipeline_logs          enable row level security;
 -- jobs: public read, no RLS needed for read
 alter table public.jobs                   enable row level security;
+alter table public.job_cache              enable row level security;
 
 -- profiles
 create policy "Users can view own profile"   on public.profiles for select using (auth.uid() = id);
@@ -249,3 +258,6 @@ create policy "Users can view own email logs" on public.email_logs for select us
 create policy "Users can manage own clarifications" on public.profile_clarifications for all using (auth.uid() = user_id);
 
 -- pipeline_logs — service role only (no user policy)
+
+-- job_cache — service role only (no user-facing RLS policy needed)
+create policy "Service role full access" on public.job_cache using (true) with check (true);
