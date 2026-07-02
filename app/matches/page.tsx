@@ -116,10 +116,16 @@ function AddJobForm({ onAdded }: { onAdded: (match: Match) => void }) {
   const [needsManual, setNeedsManual] = useState(false)
   const [importing, setImporting] = useState(false)
 
+  const isLinkedIn = url.includes('linkedin.com')
+
+  function handleUrlChange(val: string) {
+    setUrl(val)
+    if (val.includes('linkedin.com')) setNeedsManual(true)
+  }
+
   async function handleImport() {
     if (!url.trim() && !manualText.trim()) return
     setImporting(true)
-    setNeedsManual(false)
     const res = await fetch('/api/jobs/import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -134,7 +140,7 @@ function AddJobForm({ onAdded }: { onAdded: (match: Match) => void }) {
     }
     if (!res.ok) { toast.error(data.error ?? 'Import failed.'); setImporting(false); return }
     toast.success(`Added: ${data.title}`)
-    setOpen(false); setUrl(''); setManualText('')
+    setOpen(false); setUrl(''); setManualText(''); setNeedsManual(false)
     fetch('/api/matches').then(r => r.json()).then(d => { if (d.matches?.length) onAdded(d.matches[0]) })
     setImporting(false)
   }
@@ -154,26 +160,37 @@ function AddJobForm({ onAdded }: { onAdded: (match: Match) => void }) {
     <div className="rounded-xl border bg-card p-5 space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-sm font-semibold">Add from LinkedIn, Indeed, or anywhere</p>
-        <button onClick={() => { setOpen(false); setNeedsManual(false) }} className="text-muted-foreground hover:text-foreground text-lg leading-none">×</button>
+        <button onClick={() => { setOpen(false); setNeedsManual(false); setUrl(''); setManualText('') }} className="text-muted-foreground hover:text-foreground text-lg leading-none">×</button>
       </div>
-      <input type="url" value={url} onChange={e => setUrl(e.target.value)}
+      <input type="url" value={url} onChange={e => handleUrlChange(e.target.value)}
         placeholder="https://www.linkedin.com/jobs/view/..."
         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
       />
+      {isLinkedIn && !needsManual && (
+        <p className="text-xs text-amber-600 dark:text-amber-400">
+          LinkedIn blocks automatic import. Scroll down on the job page, copy the full description, and paste it below.
+        </p>
+      )}
       {needsManual && (
         <div>
-          <p className="text-xs text-muted-foreground mb-1">Couldn&apos;t fetch automatically — paste the job description:</p>
+          {isLinkedIn
+            ? <p className="text-xs text-muted-foreground mb-1">Open the job on LinkedIn → copy all the text on the page → paste it here:</p>
+            : <p className="text-xs text-muted-foreground mb-1">Couldn&apos;t fetch automatically — paste the job description:</p>
+          }
           <textarea value={manualText} onChange={e => setManualText(e.target.value)} rows={5}
             placeholder="Paste the full job description here…"
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
           />
         </div>
       )}
+      {!needsManual && !isLinkedIn && (
+        <p className="text-xs text-muted-foreground">Or skip the URL and just paste the job description directly.</p>
+      )}
       <div className="flex gap-2">
         <Button onClick={handleImport} disabled={importing || (!url.trim() && !manualText.trim())} size="sm" className="flex-1">
           {importing ? 'Analysing…' : 'Import and score'}
         </Button>
-        <Button variant="ghost" size="sm" onClick={() => { setOpen(false); setNeedsManual(false) }}>Cancel</Button>
+        <Button variant="ghost" size="sm" onClick={() => { setOpen(false); setNeedsManual(false); setUrl(''); setManualText('') }}>Cancel</Button>
       </div>
     </div>
   )
